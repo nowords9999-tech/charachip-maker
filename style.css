@@ -34,7 +34,7 @@ body {
 
 /* スライスプレビュー */
 #slice-preview-container {
-  width: 250px;
+  width: 600px;
   height: 250px;
   background: #111;
   border: 1px solid #444;
@@ -109,5 +109,6 @@ body {
   background: #555;
   cursor: col-resize;
 }
+
 
 
