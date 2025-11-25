@@ -5,6 +5,33 @@
         パレット / 配置グリッド / 微調整 / 行列調整 /
         右クリック削除 / PNG保存 / 設定保存
 =========================================================== */
+const divider = document.getElementById("divider");
+const container = document.getElementById("main-container"); 
+// ← 左右ペイン全体を包んでるコンテナIDに変更してOK
+
+let isResizing = false;
+
+divider.addEventListener("mousedown", () => {
+  isResizing = true;
+});
+
+window.addEventListener("mouseup", () => {
+  isResizing = false;
+});
+
+window.addEventListener("mousemove", (e) => {
+  if (!isResizing) return;
+
+  const rect = container.getBoundingClientRect();
+  const leftWidth = e.clientX - rect.left;
+
+  const leftPanel = document.getElementById("slice-container");
+  leftPanel.style.width = `${leftWidth}px`;
+
+  // キャンバス再描画
+  resizeCanvas();
+  drawGrid();
+});
 
 /* =========================
    左右のレイアウト分割
@@ -393,18 +420,20 @@ function drawSlicePreview() {
   const cols = parseInt(document.getElementById("slice-cols").value);
   const rows = parseInt(document.getElementById("slice-rows").value);
 
-  slicePrevCtx.strokeStyle = "rgba(255,255,255,0.3)";
-  slicePrevCtx.lineWidth = 1;
+slicePrevCtx.strokeStyle = "rgba(255,255,255,0.55)";
+slicePrevCtx.lineWidth = 1;
 
-  for (let r = 0; r < rows; r++) {
-    for (let c = 0; c < cols; c++) {
-      slicePrevCtx.strokeRect(
-        slicePrevOffsetX + c * sw * slicePrevScale,
-        slicePrevOffsetY + r * sh * slicePrevScale,
-        sw * slicePrevScale,
-        sh * slicePrevScale
-      );
-    }
+for (let r = 0; r < rows; r++) {
+  for (let c = 0; c < cols; c++) {
+    const gx = slicePrevOffsetX + c * sw * slicePrevScale;
+    const gy = slicePrevOffsetY + r * sh * slicePrevScale;
+
+    slicePrevCtx.beginPath();
+    slicePrevCtx.rect(gx + 0.5, gy + 0.5, sw * slicePrevScale, sh * slicePrevScale);
+    slicePrevCtx.stroke();
+  }
+}
+
   }
 }
 
@@ -548,3 +577,4 @@ drawGrid();
 </script>
 </body>
 </html>
+
