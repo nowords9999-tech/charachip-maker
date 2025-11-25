@@ -14,7 +14,7 @@ body {
 
 /* -------- 左：スライスパネル -------- */
 #slice-panel {
-  width: 600px;
+  width: 400px;
   border-right: 2px solid #444;
   padding: 10px;
   overflow-y: auto;
@@ -34,7 +34,7 @@ body {
 
 /* スライスプレビュー */
 #slice-preview-container {
-  width: 600px;
+  width: 400px;
   height: 250px;
   background: #111;
   border: 1px solid #444;
@@ -109,6 +109,7 @@ body {
   background: #555;
   cursor: col-resize;
 }
+
 
 
 
