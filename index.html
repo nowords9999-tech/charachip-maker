@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <title>NoWords CharaTool（β）</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<div id="app">
+
+  <!-- ==========================================
+        1. スライス設定（画像読込 ＆ プレビュー）
+  =========================================== -->
+  <div id="slice-panel">
+    <h2>スライス設定</h2>
+
+    <input type="file" id="slice-file">
+
+    <div class="slice-setting">
+      <label>コマ幅: <input id="slice-w" type="number" value="64"></label>
+      <label>コマ高: <input id="slice-h" type="number" value="64"></label>
+    </div>
+
+    <div class="slice-setting">
+      <label>横コマ数: <input id="slice-cols" type="number" value="3"></label>
+      <label>縦コマ数: <input id="slice-rows" type="number" value="4"></label>
+    </div>
+
+    <div class="slice-setting">
+      <label>Xオフセット: <input id="slice-offx" type="number" value="0"></label>
+      <label>Yオフセット: <input id="slice-offy" type="number" value="0"></label>
+    </div>
+
+    <button id="slice-run">切り分け実行</button>
+
+    <h3>スライスプレビュー</h3>
+    <div id="slice-preview-container">
+      <canvas id="slice-preview-canvas"></canvas>
+    </div>
+
+    <h3>パレット全体のオフセット調整</h3>
+    <div id="slice-bulk-adjust">
+      <button id="slice-all-left">← 全体X-1</button>
+      <button id="slice-all-right">→ 全体X+1</button>
+      <button id="slice-all-up">↑ 全体Y-1</button>
+      <button id="slice-all-down">↓ 全体Y+1</button>
+    </div>
+
+    <h2>スライス後のコマ一覧</h2>
+    <div id="slice-list"></div>
+  </div>
+
+
+  <!-- ==========================================
+        2. グリッド配置エリア
+  =========================================== -->
+  <div id="grid-panel">
+    <h2>配置グリッド</h2>
+
+    <div id="grid-settings">
+      <label>マス横数: <input id="grid-cols" type="number" value="9"></label>
+      <label>マス縦数: <input id="grid-rows" type="number" value="6"></label>
+      <label>セル幅(px): <input id="cell-width" type="number" value="64"></label>
+      <label>セル高(px): <input id="cell-height" type="number" value="64"></label>
+      <button id="grid-apply">反映</button>
+    </div>
+
+    <div id="grid-container">
+      <canvas id="grid-canvas"></canvas>
+    </div>
+
+    <button id="save-png">PNGとして保存</button>
+  </div>
+
+
+  <!-- ==========================================
+        3. 微調整パネル（配置済みコマ）
+  =========================================== -->
+  <div id="adjust-panel">
+    <h2>微調整</h2>
+
+    <div id="adjust-selected">
+      <p>選択中: <span id="selected-pos">なし</span></p>
+      <label>Xオフセット: <input id="offset-x" type="number" value="0"></label>
+      <label>Yオフセット: <input id="offset-y" type="number" value="0"></label>
+
+      <div id="offset-buttons">
+        <button data-move="up">↑</button>
+        <button data-move="down">↓</button>
+        <button data-move="left">←</button>
+        <button data-move="right">→</button>
+      </div>
+
+      <button id="offset-reset">リセット</button>
+    </div>
+
+    <hr>
+
+    <div id="adjust-row">
+      <h3>行 全体の調整</h3>
+      <label>行(row): <input id="row-target" type="number" value="0"></label>
+      <button id="row-up">行 ↑</button>
+      <button id="row-down">行 ↓</button>
+    </div>
+
+    <div id="adjust-col">
+      <h3>列 全体の調整</h3>
+      <label>列(col): <input id="col-target" type="number" value="0"></label>
+      <button id="col-left">列 ←</button>
+      <button id="col-right">列 →</button>
+    </div>
+
+  </div>
+
+</div>
+
+<script src="script.js"></script>
+
+</body>
+</html>

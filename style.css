@@ -1,0 +1,106 @@
+body {
+  margin: 0;
+  padding: 0;
+  background: #222;
+  color: #eee;
+  font-family: sans-serif;
+}
+
+#app {
+  display: flex;
+  height: 100vh;
+  overflow: hidden;
+}
+
+/* -------- 左：スライスパネル -------- */
+#slice-panel {
+  width: 280px;
+  border-right: 2px solid #444;
+  padding: 10px;
+  overflow-y: auto;
+  background: #2b2b2b;
+}
+
+#slice-panel input {
+  background: #111;
+  color: #eee;
+  border: 1px solid #555;
+  width: 60px;
+}
+
+.slice-setting {
+  margin: 6px 0;
+}
+
+/* スライスプレビュー */
+#slice-preview-container {
+  width: 250px;
+  height: 250px;
+  background: #111;
+  border: 1px solid #444;
+  overflow: hidden;
+  margin-top: 10px;
+}
+
+#slice-preview-canvas {
+  background: transparent;
+  cursor: grab;
+}
+
+/* パレット */
+#slice-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+#slice-list canvas {
+  width: 64px;
+  height: 64px;
+  border: 1px solid #555;
+  background: #111;
+  cursor: grab;
+}
+
+/* -------- 真ん中：グリッド -------- */
+#grid-panel {
+  flex: 1;
+  padding: 10px;
+  display: flex;
+  flex-direction: column;
+}
+
+#grid-settings input {
+  width: 50px;
+  background: #111;
+  color: #eee;
+  border: 1px solid #555;
+}
+
+#grid-container {
+  flex: 1;
+  border: 1px solid #555;
+  background: #111;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  overflow: auto;
+}
+
+/* -------- 右：微調整 -------- */
+#adjust-panel {
+  width: 280px;
+  border-left: 2px solid #444;
+  padding: 10px;
+  background: #2b2b2b;
+  overflow-y: auto;
+}
+
+#offset-buttons button,
+#adjust-panel button {
+  background: #555;
+  border: 1px solid #777;
+  color: #eee;
+  padding: 4px 8px;
+  cursor: pointer;
+}
