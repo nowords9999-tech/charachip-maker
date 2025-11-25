@@ -1,41 +1,14 @@
-<script>
 /* ============================================================
-   NoWords CharaTool 完全版 script.js
+   NoWords CharaTool
+   script.js — 完成版（ver 1.0）
    機能：スライス / プレビュー / ズーム / ドラッグ /
         パレット / 配置グリッド / 微調整 / 行列調整 /
         右クリック削除 / PNG保存 / 設定保存
-=========================================================== */
+============================================================ */
 
 /* =========================
-   左右のレイアウト分割
-========================= */
-const container = document.getElementById("container");
-const sliceWin = document.getElementById("sliceWindow");
-const gridWin = document.getElementById("gridWindow");
-const divider = document.getElementById("divider");
-
-let draggingDivider = false;
-
-divider.addEventListener("mousedown", () => draggingDivider = true);
-window.addEventListener("mouseup", () => draggingDivider = false);
-
-window.addEventListener("mousemove", (e) => {
-  if (!draggingDivider) return;
-
-  const rect = container.getBoundingClientRect();
-  const newWidth = e.clientX - rect.left;
-
-  if (newWidth < 200 || newWidth > rect.width - 200) return;
-
-  sliceWin.style.flex = `0 0 ${newWidth}px`;
-  gridWin.style.flex = `1 1 auto`;
-
-  resizeAllCanvas();
-});
-
-/* ============================================================
    グリッド基本設定
-=========================================================== */
+========================= */
 let gridCols = 9;
 let gridRows = 6;
 let cellW = 64;
@@ -54,27 +27,18 @@ function resetGrid() {
   grid = [];
   for (let r = 0; r < gridRows; r++) {
     const row = [];
-    for (let c = 0; c < gridCols; c++) row.push(null);
+    for (let c = 0; c < gridCols; c++) {
+      row.push(null);
+    }
     grid.push(row);
   }
 }
 
-/* =========================
-   グリッドキャンバスリサイズ
-========================= */
 function resizeCanvas() {
   gridCanvas.width = gridCols * cellW;
   gridCanvas.height = gridRows * cellH;
 }
 
-function resizeAllCanvas() {
-  resizeCanvas();
-  drawGrid();
-}
-
-/* =========================
-   選択枠表示
-========================= */
 function highlightSelected(r, c) {
   ctx.strokeStyle = "rgba(255,255,0,0.9)";
   ctx.lineWidth = 2;
@@ -110,7 +74,9 @@ function drawGrid() {
     }
   }
 
-  if (selectedCell) highlightSelected(selectedCell.row, selectedCell.col);
+  if (selectedCell) {
+    highlightSelected(selectedCell.row, selectedCell.col);
+  }
 }
 
 /* =========================
@@ -160,21 +126,20 @@ gridCanvas.addEventListener("contextmenu", (e) => {
   grid[row][col] = null;
   selectedCell = null;
   document.getElementById("selected-pos").textContent = "なし";
-
   drawGrid();
 });
 
 /* =========================
-   ドラッグ＆ドロップでコマ配置
+   ドラッグ＆ドロップ配置
 ========================= */
 gridCanvas.addEventListener("dragover", (e) => e.preventDefault());
 
 gridCanvas.addEventListener("drop", (e) => {
   e.preventDefault();
   const rect = gridCanvas.getBoundingClientRect();
+
   const x = e.clientX - rect.left;
   const y = e.clientY - rect.top;
-
   const col = Math.floor(x / cellW);
   const row = Math.floor(y / cellH);
 
@@ -191,11 +156,12 @@ gridCanvas.addEventListener("drop", (e) => {
 
   selectedCell = { row, col };
   document.getElementById("selected-pos").textContent = `(${row}, ${col})`;
+
   drawGrid();
 });
 
 /* =========================
-   グリッド設定変更
+   グリッド設定更新
 ========================= */
 document.getElementById("grid-apply").addEventListener("click", () => {
   gridCols = parseInt(document.getElementById("grid-cols").value);
@@ -212,10 +178,11 @@ document.getElementById("grid-apply").addEventListener("click", () => {
 });
 
 /* =========================
-   選択セルのオフセット調整
+   個別オフセット調整
 ========================= */
 function updateSelectedOffsets() {
   if (!selectedCell) return;
+
   const { row, col } = selectedCell;
   const cell = grid[row][col];
   if (!cell) return;
@@ -259,11 +226,12 @@ document.getElementById("offset-reset").addEventListener("click", () => {
   cell.offsetY = 0;
   document.getElementById("offset-x").value = 0;
   document.getElementById("offset-y").value = 0;
+
   drawGrid();
 });
 
 /* =========================
-   行・列調整
+   行・列の一括調整
 ========================= */
 document.getElementById("row-up").addEventListener("click", () => {
   let r = parseInt(document.getElementById("row-target").value);
@@ -308,7 +276,6 @@ document.getElementById("save-png").addEventListener("click", () => {
   const outCanvas = document.createElement("canvas");
   outCanvas.width = gridCols * cellW;
   outCanvas.height = gridRows * cellH;
-
   const outCtx = outCanvas.getContext("2d");
 
   for (let r = 0; r < gridRows; r++) {
@@ -334,7 +301,7 @@ document.getElementById("save-png").addEventListener("click", () => {
 });
 
 /* =============================================================
-   スライス機能
+   スライス機能（プレビュー・ズーム・ドラッグ・分割）
 ============================================================= */
 let sliceSourceImage = null;
 
@@ -353,7 +320,7 @@ let dragStartX = 0;
 let dragStartY = 0;
 
 /* --------------------
-   画像読込
+   ファイル読込
 -------------------- */
 document.getElementById("slice-file").addEventListener("change", (e) => {
   const file = e.target.files[0];
@@ -363,8 +330,13 @@ document.getElementById("slice-file").addEventListener("change", (e) => {
   reader.onload = function (ev) {
     sliceSourceImage = new Image();
     sliceSourceImage.onload = () => {
+
+      slicePrevCanvas.width = 300;
+      slicePrevCanvas.height = 300;
+
       slicePrevOffsetX = 0;
       slicePrevOffsetY = 0;
+
       drawSlicePreview();
     };
     sliceSourceImage.src = ev.target.result;
@@ -373,7 +345,7 @@ document.getElementById("slice-file").addEventListener("change", (e) => {
 });
 
 /* --------------------
-   スライスプレビュー描画
+   プレビュー描画
 -------------------- */
 function drawSlicePreview() {
   if (!sliceSourceImage) return;
@@ -420,8 +392,8 @@ slicePrevCanvas.addEventListener("mousedown", (e) => {
 slicePrevCanvas.addEventListener("mousemove", (e) => {
   if (!draggingPreview) return;
 
-  const dx = e.clientX - dragStartX;
-  const dy = e.clientY - dragStartY;
+  const dx = (e.clientX - dragStartX);
+  const dy = (e.clientY - dragStartY);
 
   slicePrevOffsetX += dx;
   slicePrevOffsetY += dy;
@@ -439,18 +411,20 @@ slicePrevCanvas.addEventListener("mouseup", () => draggingPreview = false);
 slicePrevCanvas.addEventListener("mouseleave", () => draggingPreview = false);
 
 /* --------------------
-   ズーム（ホイール）
+   プレビューズーム（ホイール）
 -------------------- */
 slicePrevCanvas.addEventListener("wheel", (e) => {
   e.preventDefault();
 
   const oldScale = slicePrevScale;
+
   if (e.deltaY < 0) slicePrevScale = Math.min(slicePrevScale + 0.2, slicePrevScaleMax);
   else slicePrevScale = Math.max(slicePrevScale - 0.2, slicePrevScaleMin);
 
   const rect = slicePrevCanvas.getBoundingClientRect();
   const mouseX = e.clientX - rect.left;
   const mouseY = e.clientY - rect.top;
+
   const zoomFactor = slicePrevScale / oldScale;
 
   slicePrevOffsetX = mouseX - (mouseX - slicePrevOffsetX) * zoomFactor;
@@ -482,14 +456,14 @@ document.getElementById("slice-run").addEventListener("click", () => {
   for (let r = 0; r < rows; r++) {
     for (let c = 0; c < cols; c++) {
 
-      const sx = ox + c * sw;
-      const sy = oy + r * sh;
+      const sx = (ox + c * sw);
+      const sy = (oy + r * sh);
 
       const canvas = document.createElement("canvas");
       canvas.width = sw;
       canvas.height = sh;
-
       const ctx2 = canvas.getContext("2d");
+
       ctx2.drawImage(
         sliceSourceImage,
         sx, sy, sw, sh,
@@ -506,6 +480,7 @@ document.getElementById("slice-run").addEventListener("click", () => {
   }
 
   saveSliceSettings();
+  console.log("スライス完了");
 });
 
 /* --------------------
@@ -526,6 +501,7 @@ function saveSliceSettings() {
 function loadSliceSettings() {
   const raw = localStorage.getItem("NoWordsSliceSettings");
   if (!raw) return;
+
   try {
     const d = JSON.parse(raw);
     document.getElementById("slice-w").value = d.w;
@@ -545,6 +521,3 @@ loadSliceSettings();
 resetGrid();
 resizeCanvas();
 drawGrid();
-</script>
-</body>
-</html>

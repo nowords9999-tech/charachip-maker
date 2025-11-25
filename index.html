@@ -1,710 +1,121 @@
 <!DOCTYPE html>
 <html lang="ja">
 <head>
-<meta charset="UTF-8">
-<title>NoWords CharaTool 完全版</title>
-
-<style>
-  body, html {
-    margin: 0;
-    padding: 0;
-    height: 100%;
-    overflow: hidden;
-    background: #1e1e1e;
-    color: #ddd;
-    font-family: sans-serif;
-  }
-
-  /* 左右レイアウトのメインコンテナ */
-  #container {
-    display: flex;
-    width: 100vw;
-    height: 100vh;
-    overflow: hidden;
-  }
-
-  /* 両ウィンドウ共通 */
-  .panel {
-    flex: 1 1 50%;
-    background: #202020;
-    position: relative;
-    overflow: hidden;
-  }
-
-  /* 区切りバー（ドラッグで幅変更） */
-  #divider {
-    width: 6px;
-    background: #444;
-    cursor: col-resize;
-  }
-
-  /* スライス側レイアウト */
-  #slice-area {
-    position: absolute;
-    inset: 0;
-    display: flex;
-    flex-direction: column;
-  }
-
-  #slice-preview-wrap {
-    flex: 1;
-    background: #000;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-  }
-
-  #slice-preview-canvas {
-    background: #111;
-  }
-
-  #slice-settings {
-    padding: 10px;
-    background: #2a2a2a;
-    border-top: 1px solid #444;
-  }
-
-  #slice-settings input {
-    width: 60px;
-    margin-right: 8px;
-  }
-
-  /* 切り出し結果リスト */
-  #slice-list {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 4px;
-    padding: 6px;
-    overflow-y: auto;
-    background: #181818;
-    border-top: 1px solid #333;
-    height: 120px;
-  }
-
-  #slice-list canvas {
-    border: 1px solid #444;
-  }
-
-  /* グリッド側UI */
-  #grid-top-ui {
-    position: absolute;
-    top: 10px;
-    left: 10px;
-    padding: 8px;
-    background: rgba(0,0,0,0.5);
-    border-radius: 6px;
-  }
-
-  #grid-top-ui input {
-    width: 70px;
-    margin-right: 5px;
-  }
-
-  #grid-canvas {
-    background: #111;
-    display: block;
-    margin: 0;
-  }
-</style>
-
+  <meta charset="UTF-8">
+  <title>NoWords CharaTool（β）</title>
+  <link rel="stylesheet" href="style.css">
 </head>
-
 <body>
 
-<div id="container">
+<div id="app">
 
-  <!-- ▼ 左：スライスウィンドウ -------------------------------- -->
-  <div id="sliceWindow" class="panel">
+  <!-- ==========================================
+        1. スライス設定（画像読込 ＆ プレビュー）
+  =========================================== -->
+  <div id="slice-panel">
+    <h2>スライス設定</h2>
 
-    <div id="slice-area">
-      
-      <!-- スライスプレビュー -->
-      <div id="slice-preview-wrap">
-        <canvas id="slice-preview-canvas" width="300" height="300"></canvas>
-      </div>
+    <input type="file" id="slice-file">
 
-      <!-- スライス設定フォーム -->
-      <div id="slice-settings">
-
-        <div style="margin-bottom:6px;">
-          <input type="file" id="slice-file">
-        </div>
-
-        <label>W:</label><input id="slice-w" type="number" value="64">
-        <label>H:</label><input id="slice-h" type="number" value="64">
-        <label>Cols:</label><input id="slice-cols" type="number" value="3">
-        <label>Rows:</label><input id="slice-rows" type="number" value="4">
-
-        <br><br>
-
-        <label>OffX:</label><input id="slice-offx" type="number" value="0">
-        <label>OffY:</label><input id="slice-offy" type="number" value="0">
-
-        <button id="slice-run" style="margin-left:10px;">切り出し</button>
-      </div>
-
-      <!-- スライス結果エリア -->
-      <div id="slice-list"></div>
-
+    <div class="slice-setting">
+      <label>コマ幅: <input id="slice-w" type="number" value="64"></label>
+      <label>コマ高: <input id="slice-h" type="number" value="64"></label>
     </div>
+
+    <div class="slice-setting">
+      <label>横コマ数: <input id="slice-cols" type="number" value="3"></label>
+      <label>縦コマ数: <input id="slice-rows" type="number" value="4"></label>
+    </div>
+
+    <div class="slice-setting">
+      <label>Xオフセット: <input id="slice-offx" type="number" value="0"></label>
+      <label>Yオフセット: <input id="slice-offy" type="number" value="0"></label>
+    </div>
+
+    <button id="slice-run">切り分け実行</button>
+
+    <h3>スライスプレビュー</h3>
+    <div id="slice-preview-container">
+      <canvas id="slice-preview-canvas"></canvas>
+    </div>
+
+    <h3>パレット全体のオフセット調整</h3>
+    <div id="slice-bulk-adjust">
+      <button id="slice-all-left">← 全体X-1</button>
+      <button id="slice-all-right">→ 全体X+1</button>
+      <button id="slice-all-up">↑ 全体Y-1</button>
+      <button id="slice-all-down">↓ 全体Y+1</button>
+    </div>
+
+    <h2>スライス後のコマ一覧</h2>
+    <div id="slice-list"></div>
   </div>
 
-  <!-- ▼ 真ん中：ドラッグ境界 -------------------------------- -->
-  <div id="divider"></div>
 
-  <!-- ▼ 右：配置グリッド -------------------------------- -->
-  <div id="gridWindow" class="panel">
+  <!-- ==========================================
+        2. グリッド配置エリア
+  =========================================== -->
+  <div id="grid-panel">
+    <h2>配置グリッド</h2>
 
-    <div id="grid-top-ui">
-      <div>
-        <label>Cols:</label>
-        <input id="grid-cols" type="number" value="9">
+    <div id="grid-settings">
+      <label>マス横数: <input id="grid-cols" type="number" value="9"></label>
+      <label>マス縦数: <input id="grid-rows" type="number" value="6"></label>
+      <label>セル幅(px): <input id="cell-width" type="number" value="64"></label>
+      <label>セル高(px): <input id="cell-height" type="number" value="64"></label>
+      <button id="grid-apply">反映</button>
+    </div>
 
-        <label>Rows:</label>
-        <input id="grid-rows" type="number" value="6">
-      </div>
+    <div id="grid-container">
+      <canvas id="grid-canvas"></canvas>
+    </div>
 
-      <div style="margin-top:6px;">
-        <label>CellW:</label>
-        <input id="cell-width" type="number" value="64">
+    <button id="save-png">PNGとして保存</button>
+  </div>
 
-        <label>CellH:</label>
-        <input id="cell-height" type="number" value="64">
 
-        <button id="grid-apply">適用</button>
-      </div>
+  <!-- ==========================================
+        3. 微調整パネル（配置済みコマ）
+  =========================================== -->
+  <div id="adjust-panel">
+    <h2>微調整</h2>
 
-      <div style="margin-top:10px;">
-        選択セル：<span id="selected-pos">なし</span>
-      </div>
+    <div id="adjust-selected">
+      <p>選択中: <span id="selected-pos">なし</span></p>
+      <label>Xオフセット: <input id="offset-x" type="number" value="0"></label>
+      <label>Yオフセット: <input id="offset-y" type="number" value="0"></label>
 
-      <div style="margin-top:8px;">
-        OffX:<input id="offset-x" type="number" value="0">
-        OffY:<input id="offset-y" type="number" value="0">
-      </div>
-
-      <div id="offset-buttons" style="margin-top:8px; display:flex; gap:4px; flex-wrap:wrap;">
+      <div id="offset-buttons">
         <button data-move="up">↑</button>
         <button data-move="down">↓</button>
         <button data-move="left">←</button>
         <button data-move="right">→</button>
-        <button id="offset-reset">リセット</button>
       </div>
 
-      <div style="margin-top:10px;">
-        Row:<input id="row-target" type="number" value="0" style="width:40px;">
-        <button id="row-up">↑行</button>
-        <button id="row-down">↓行</button>
-      </div>
-
-      <div style="margin-top:6px;">
-        Col:<input id="col-target" type="number" value="0" style="width:40px;">
-        <button id="col-left">←列</button>
-        <button id="col-right">→列</button>
-      </div>
-
-      <div style="margin-top:10px;">
-        <button id="save-png">PNG保存</button>
-      </div>
+      <button id="offset-reset">リセット</button>
     </div>
 
-    <canvas id="grid-canvas"></canvas>
+    <hr>
+
+    <div id="adjust-row">
+      <h3>行 全体の調整</h3>
+      <label>行(row): <input id="row-target" type="number" value="0"></label>
+      <button id="row-up">行 ↑</button>
+      <button id="row-down">行 ↓</button>
+    </div>
+
+    <div id="adjust-col">
+      <h3>列 全体の調整</h3>
+      <label>列(col): <input id="col-target" type="number" value="0"></label>
+      <button id="col-left">列 ←</button>
+      <button id="col-right">列 →</button>
+    </div>
+
   </div>
 
 </div>
 
-<script>
-/* ============================================================
-   完全版 script.js（左右分割・スライス・配置グリッド）
-=========================================================== */
-
-/* ----------------------------
-   左右ドラッグレイアウト
----------------------------- */
-const container = document.getElementById("container");
-const sliceWin = document.getElementById("sliceWindow");
-const gridWin = document.getElementById("gridWindow");
-const divider = document.getElementById("divider");
-
-let draggingDivider = false;
-
-divider.addEventListener("mousedown", () => draggingDivider = true);
-window.addEventListener("mouseup", () => draggingDivider = false);
-
-window.addEventListener("mousemove", (e) => {
-  if (!draggingDivider) return;
-
-  const rect = container.getBoundingClientRect();
-  const newWidth = e.clientX - rect.left;
-
-  if (newWidth < 200 || newWidth > rect.width - 200) return;
-
-  sliceWin.style.flex = `0 0 ${newWidth}px`;
-  gridWin.style.flex = `1 1 auto`;
-
-  resizeAllCanvas();
-});
-
-/* ============================================================
-   グリッド基本設定
-=========================================================== */
-
-let gridCols = 9;
-let gridRows = 6;
-let cellW = 64;
-let cellH = 64;
-
-const gridCanvas = document.getElementById("grid-canvas");
-const ctx = gridCanvas.getContext("2d");
-
-let grid = [];
-let selectedCell = null;
-
-/* グリッド初期化 */
-function resetGrid() {
-  grid = [];
-  for (let r = 0; r < gridRows; r++) {
-    const row = [];
-    for (let c = 0; c < gridCols; c++) row.push(null);
-    grid.push(row);
-  }
-}
-
-/* キャンバスサイズ更新 */
-function resizeCanvas() {
-  gridCanvas.width = gridCols * cellW;
-  gridCanvas.height = gridRows * cellH;
-}
-
-function resizeAllCanvas() {
-  resizeCanvas();
-  drawGrid();
-}
-
-/* 選択枠表示 */
-function highlightSelected(r, c) {
-  ctx.strokeStyle = "rgba(255,255,0,0.9)";
-  ctx.lineWidth = 2;
-  ctx.strokeRect(c * cellW + 1, r * cellH + 1, cellW - 2, cellH - 2);
-  ctx.lineWidth = 1;
-}
-
-/* グリッド描画 */
-function drawGrid() {
-  ctx.clearRect(0, 0, gridCanvas.width, gridCanvas.height);
-
-  for (let r = 0; r < gridRows; r++) {
-    for (let c = 0; c < gridCols; c++) {
-      const cell = grid[r][c];
-      if (cell && cell.img) {
-        ctx.drawImage(
-          cell.img,
-          c * cellW + cell.offsetX,
-          r * cellH + cell.offsetY,
-          cellW,
-          cellH
-        );
-      }
-    }
-  }
-
-  ctx.strokeStyle = "rgba(255,255,255,0.2)";
-  for (let r = 0; r < gridRows; r++) {
-    for (let c = 0; c < gridCols; c++) {
-      ctx.strokeRect(c * cellW, r * cellH, cellW, cellH);
-    }
-  }
-
-  if (selectedCell) highlightSelected(selectedCell.row, selectedCell.col);
-}
-
-/* セル選択 */
-gridCanvas.addEventListener("click", (e) => {
-  const rect = gridCanvas.getBoundingClientRect();
-  const x = e.clientX - rect.left;
-  const y = e.clientY - rect.top;
-
-  const col = Math.floor(x / cellW);
-  const row = Math.floor(y / cellH);
-  if (row < 0 || row >= gridRows) return;
-  if (col < 0 || col >= gridCols) return;
-
-  selectedCell = { row, col };
-  document.getElementById("selected-pos").textContent = `(${row}, ${col})`;
-
-  const cell = grid[row][col];
-  document.getElementById("offset-x").value = cell ? cell.offsetX : 0;
-  document.getElementById("offset-y").value = cell ? cell.offsetY : 0;
-
-  drawGrid();
-});
-
-/* 右クリック削除 */
-gridCanvas.addEventListener("contextmenu", (e) => {
-  e.preventDefault();
-
-  const rect = gridCanvas.getBoundingClientRect();
-  const x = e.clientX - rect.left;
-  const y = e.clientY - rect.top;
-  const col = Math.floor(x / cellW);
-  const row = Math.floor(y / cellH);
-
-  if (row < 0 || row >= gridRows) return;
-  if (col < 0 || col >= gridCols) return;
-
-  grid[row][col] = null;
-  selectedCell = null;
-  document.getElementById("selected-pos").textContent = "なし";
-
-  drawGrid();
-});
-
-/* ドラッグ＆ドロップ配置 */
-gridCanvas.addEventListener("dragover", (e) => e.preventDefault());
-
-gridCanvas.addEventListener("drop", (e) => {
-  e.preventDefault();
-
-  const rect = gridCanvas.getBoundingClientRect();
-  const x = e.clientX - rect.left;
-  const y = e.clientY - rect.top;
-
-  const col = Math.floor(x / cellW);
-  const row = Math.floor(y / cellH);
-
-  const imgSrc = e.dataTransfer.getData("imgSrc");
-  if (!imgSrc) return;
-
-  const img = new Image();
-  img.src = imgSrc;
-
-  grid[row][col] = { img, offsetX: 0, offsetY: 0 };
-  selectedCell = { row, col };
-  document.getElementById("selected-pos").textContent = `(${row}, ${col})`;
-
-  drawGrid();
-});
-
-/* グリッド設定更新 */
-document.getElementById("grid-apply").addEventListener("click", () => {
-  gridCols = parseInt(document.getElementById("grid-cols").value);
-  gridRows = parseInt(document.getElementById("grid-rows").value);
-  cellW = parseInt(document.getElementById("cell-width").value);
-  cellH = parseInt(document.getElementById("cell-height").value);
-
-  resetGrid();
-  resizeCanvas();
-  drawGrid();
-
-  selectedCell = null;
-  document.getElementById("selected-pos").textContent = "なし";
-});
-
-/* 個別オフセット */
-function updateOffsets() {
-  if (!selectedCell) return;
-  const { row, col } = selectedCell;
-  const cell = grid[row][col];
-  if (!cell) return;
-
-  cell.offsetX = parseInt(document.getElementById("offset-x").value);
-  cell.offsetY = parseInt(document.getElementById("offset-y").value);
-
-  drawGrid();
-}
-
-document.getElementById("offset-x").addEventListener("input", updateOffsets);
-document.getElementById("offset-y").addEventListener("input", updateOffsets);
-
-/* 微調整 */
-document.querySelectorAll("#offset-buttons button").forEach(btn => {
-  btn.addEventListener("click", () => {
-    if (!selectedCell) return;
-
-    const { row, col } = selectedCell;
-    const cell = grid[row][col];
-    if (!cell) return;
-
-    const move = btn.dataset.move;
-    if (move === "up") cell.offsetY -= 1;
-    if (move === "down") cell.offsetY += 1;
-    if (move === "left") cell.offsetX -= 1;
-    if (move === "right") cell.offsetX += 1;
-
-    document.getElementById("offset-x").value = cell.offsetX;
-    document.getElementById("offset-y").value = cell.offsetY;
-
-    drawGrid();
-  });
-});
-
-/* リセット */
-document.getElementById("offset-reset").addEventListener("click", () => {
-  if (!selectedCell) return;
-
-  const { row, col } = selectedCell;
-  const cell = grid[row][col];
-  if (!cell) return;
-
-  cell.offsetX = 0;
-  cell.offsetY = 0;
-  document.getElementById("offset-x").value = 0;
-  document.getElementById("offset-y").value = 0;
-
-  drawGrid();
-});
-
-/* 行列一括調整 */
-document.getElementById("row-up").addEventListener("click", () => {
-  const row = parseInt(document.getElementById("row-target").value);
-  for (let c = 0; c < gridCols; c++) {
-    if (grid[row][c]) grid[row][c].offsetY -= 1;
-  }
-  drawGrid();
-});
-
-document.getElementById("row-down").addEventListener("click", () => {
-  const row = parseInt(document.getElementById("row-target").value);
-  for (let c = 0; c < gridCols; c++) {
-    if (grid[row][c]) grid[row][c].offsetY += 1;
-  }
-  drawGrid();
-});
-
-document.getElementById("col-left").addEventListener("click", () => {
-  const col = parseInt(document.getElementById("col-target").value);
-  for (let r = 0; r < gridRows; r++) {
-    if (grid[r][col]) grid[r][col].offsetX -= 1;
-  }
-  drawGrid();
-});
-
-document.getElementById("col-right").addEventListener("click", () => {
-  const col = parseInt(document.getElementById("col-target").value);
-  for (let r = 0; r < gridRows; r++) {
-    if (grid[r][col]) grid[r][col].offsetX += 1;
-  }
-  drawGrid();
-});
-
-/* PNG保存 */
-document.getElementById("save-png").addEventListener("click", () => {
-  const outCanvas = document.createElement("canvas");
-  outCanvas.width = gridCols * cellW;
-  outCanvas.height = gridRows * cellH;
-
-  const outCtx = outCanvas.getContext("2d");
-
-  for (let r = 0; r < gridRows; r++) {
-    for (let c = 0; c < gridCols; c++) {
-      const cell = grid[r][c];
-      if (cell && cell.img) {
-        outCtx.drawImage(
-          cell.img,
-          c * cellW + cell.offsetX,
-          r * cellH + cell.offsetY,
-          cellW,
-          cellH
-        );
-      }
-    }
-  }
-
-  const url = outCanvas.toDataURL("image/png");
-  const a = document.createElement("a");
-  a.href = url;
-  a.download = "NoWordsChara.png";
-  a.click();
-});
-
-/* ----------------------------
-   スライス機能
----------------------------- */
-let sliceSourceImage = null;
-
-const slicePrevCanvas = document.getElementById("slice-preview-canvas");
-const slicePrevCtx = slicePrevCanvas.getContext("2d");
-
-let slicePrevScale = 2.0;
-let slicePrevOffsetX = 0;
-let slicePrevOffsetY = 0;
-
-let draggingPreview = false;
-let dragStartX = 0;
-let dragStartY = 0;
-
-/* 画像読込 */
-document.getElementById("slice-file").addEventListener("change", (e) => {
-  const file = e.target.files[0];
-  if (!file) return;
-
-  const reader = new FileReader();
-  reader.onload = function (ev) {
-    sliceSourceImage = new Image();
-    sliceSourceImage.onload = () => {
-      slicePrevOffsetX = 0;
-      slicePrevOffsetY = 0;
-      drawSlicePreview();
-    };
-    sliceSourceImage.src = ev.target.result;
-  };
-  reader.readAsDataURL(file);
-});
-
-/* スライスプレビュー描画 */
-function drawSlicePreview() {
-  if (!sliceSourceImage) return;
-
-  slicePrevCtx.clearRect(0, 0, slicePrevCanvas.width, slicePrevCanvas.height);
-
-  slicePrevCtx.drawImage(
-    sliceSourceImage,
-    slicePrevOffsetX,
-    slicePrevOffsetY,
-    sliceSourceImage.width * slicePrevScale,
-    sliceSourceImage.height * slicePrevScale
-  );
-
-  const sw = parseInt(document.getElementById("slice-w").value);
-  const sh = parseInt(document.getElementById("slice-h").value);
-  const cols = parseInt(document.getElementById("slice-cols").value);
-  const rows = parseInt(document.getElementById("slice-rows").value);
-
-  slicePrevCtx.strokeStyle = "rgba(255,255,255,0.3)";
-  slicePrevCtx.lineWidth = 1;
-
-  for (let r = 0; r < rows; r++) {
-    for (let c = 0; c < cols; c++) {
-      slicePrevCtx.strokeRect(
-        slicePrevOffsetX + c * sw * slicePrevScale,
-        slicePrevOffsetY + r * sh * slicePrevScale,
-        sw * slicePrevScale,
-        sh * slicePrevScale
-      );
-    }
-  }
-}
-
-/* プレビュードラッグ */
-slicePrevCanvas.addEventListener("mousedown", (e) => {
-  draggingPreview = true;
-  dragStartX = e.clientX;
-  dragStartY = e.clientY;
-});
-slicePrevCanvas.addEventListener("mousemove", (e) => {
-  if (!draggingPreview) return;
-
-  const dx = e.clientX - dragStartX;
-  const dy = e.clientY - dragStartStartY;
-
-  slicePrevOffsetX += dx;
-  slicePrevOffsetY += dy;
-
-  dragStartX = e.clientX;
-  dragStartY = e.clientY;
-
-  document.getElementById("slice-offx").value = Math.round(slicePrevOffsetX / slicePrevScale);
-  document.getElementById("slice-offy").value = Math.round(slicePrevOffsetY / slicePrevScale);
-
-  drawSlicePreview();
-});
-slicePrevCanvas.addEventListener("mouseup", () => draggingPreview = false);
-slicePrevCanvas.addEventListener("mouseleave", () => draggingPreview = false);
-
-/* ズーム */
-slicePrevCanvas.addEventListener("wheel", (e) => {
-  e.preventDefault();
-
-  const old = slicePrevScale;
-  if (e.deltaY < 0) slicePrevScale = Math.min(slicePrevScale + 0.2, 8.0);
-  else slicePrevScale = Math.max(slicePrevScale - 0.2, 0.5);
-
-  const rect = slicePrevCanvas.getBoundingClientRect();
-  const mx = e.clientX - rect.left;
-  const my = e.clientY - rect.top;
-  const f = slicePrevScale / old;
-
-  slicePrevOffsetX = mx - (mx - slicePrevOffsetX) * f;
-  slicePrevOffsetY = my - (my - slicePrevOffsetY) * f;
-
-  drawSlicePreview();
-});
-
-/* スライス実行 */
-document.getElementById("slice-run").addEventListener("click", () => {
-  if (!sliceSourceImage) return alert("画像が読み込まれていません");
-
-  const sw = parseInt(document.getElementById("slice-w").value);
-  const sh = parseInt(document.getElementById("slice-h").value);
-  const cols = parseInt(document.getElementById("slice-cols").value);
-  const rows = parseInt(document.getElementById("slice-rows").value);
-  const ox = parseInt(document.getElementById("slice-offx").value);
-  const oy = parseInt(document.getElementById("slice-offy").value);
-
-  const list = document.getElementById("slice-list");
-  list.innerHTML = "";
-
-  for (let r = 0; r < rows; r++) {
-    for (let c = 0; c < cols; c++) {
-      const sx = ox + c * sw;
-      const sy = oy + r * sh;
-
-      const canvas = document.createElement("canvas");
-      canvas.width = sw;
-      canvas.height = sh;
-      const actx = canvas.getContext("2d");
-
-      actx.drawImage(
-        sliceSourceImage,
-        sx, sy, sw, sh,
-        0, 0, sw, sh
-      );
-
-      canvas.draggable = true;
-      canvas.addEventListener("dragstart", (e) => {
-        e.dataTransfer.setData("imgSrc", canvas.toDataURL());
-      });
-
-      list.appendChild(canvas);
-    }
-  }
-
-  saveSliceSettings();
-});
-
-/* スライス設定保存 */
-function saveSliceSettings() {
-  const d = {
-    w: document.getElementById("slice-w").value,
-    h: document.getElementById("slice-h").value,
-    cols: document.getElementById("slice-cols").value,
-    rows: document.getElementById("slice-rows").value,
-    offx: document.getElementById("slice-offx").value,
-    offy: document.getElementById("slice-offy").value
-  };
-  localStorage.setItem("NoWordsSliceSettings", JSON.stringify(d));
-}
-
-/* 設定読み込み */
-(function loadSliceSettings() {
-  const raw = localStorage.getItem("NoWordsSliceSettings");
-  if (!raw) return;
-  try {
-    const d = JSON.parse(raw);
-    document.getElementById("slice-w").value = d.w;
-    document.getElementById("slice-h").value = d.h;
-    document.getElementById("slice-cols").value = d.cols;
-    document.getElementById("slice-rows").value = d.rows;
-    document.getElementById("slice-offx").value = d.offx;
-    document.getElementById("slice-offy").value = d.offy;
-  } catch {}
-})();
-
-/* 初期起動 */
-resetGrid();
-resizeCanvas();
-drawGrid();
-</script>
+<script src="script.js"></script>
 
 </body>
 </html>
