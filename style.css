@@ -14,7 +14,7 @@ body {
 
 /* -------- 左：スライスパネル -------- */
 #slice-panel {
-  width: 280px;
+  width: 600px;
   border-right: 2px solid #444;
   padding: 10px;
   overflow-y: auto;
@@ -109,4 +109,5 @@ body {
   background: #555;
   cursor: col-resize;
 }
+
 
