@@ -14,7 +14,7 @@ body {
 
 /* -------- 左：スライスパネル -------- */
 #slice-panel {
-  width: 400px;
+  width: 600px;
   border-right: 2px solid #444;
   padding: 10px;
   overflow-y: auto;
@@ -32,11 +32,17 @@ body {
   margin: 6px 0;
 }
 
+#sliceWindow {
+  width: 600px;
+  flex: 0 0 600px;
+}
+
+
 /* スライスプレビュー */
 #slice-preview-container {
-  width: 400px;
-  height: 250px;
-  background: #111;
+  width: 500px;
+  height: 500px;
+  background: transparent; 
   border: 1px solid #444;
   overflow: hidden;
   margin-top: 10px;
@@ -58,7 +64,7 @@ body {
   width: 64px;
   height: 64px;
   border: 1px solid #555;
-  background: #111;
+  background: transparent;
   cursor: grab;
 }
 
@@ -104,12 +110,7 @@ body {
   padding: 4px 8px;
   cursor: pointer;
 }
-#divider {
-  width: 6px;
-  background: #555;
-  cursor: col-resize;
+
+#slice-partial-container {
+  background: transparent !important;
 }
-
-
-
-
