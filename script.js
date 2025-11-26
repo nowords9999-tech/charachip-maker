@@ -405,7 +405,7 @@ document.getElementById("offset-reset").addEventListener("click", () => {
 /* =========================
    行・列の一括調整
 ========================= */
-document.getElementById("row-up").addEventListener("click", () => {
+/*document.getElementById("row-up").addEventListener("click", () => {
   let r = parseInt(document.getElementById("row-target").value);
   if (r < 0 || r >= gridRows) return;
   for (let c = 0; c < gridCols; c++) {
@@ -439,7 +439,7 @@ document.getElementById("col-right").addEventListener("click", () => {
     if (grid[r][target]) grid[r][target].offsetX += 1;
   }
   drawGrid();
-});
+});*/
 
 /* =========================
    PNG保存
@@ -549,13 +549,18 @@ let partialLineIndex = 0;    // ★ 追加：何コマ目から残りを表示�
    ファイル読込
 -------------------- */
 document.getElementById("slice-file").addEventListener("change", (e) => {
+  console.log("[LOAD] file changed");
+
   const file = e.target.files[0];
   if (!file) return;
 
 const reader = new FileReader();
 reader.onload = function (ev) {
+  console.log("[LOAD] reader onload");
+
   sliceSourceImage = new Image();
   sliceSourceImage.onload = () => {
+console.log("[LOAD] image.onload fired");
 
 slicePrevCanvas.width = 500;
 slicePrevCanvas.height = 500;
@@ -589,10 +594,87 @@ if (sliceLineMode) updatePartialPreview();
 
   reader.readAsDataURL(file);
 });
+
+document.getElementById("pick-transparent-color").addEventListener("click", () => {
+  transparentPickMode = true;
+
+  const msg = document.getElementById("transparent-msg");
+  msg.textContent = "スライスプレビューをクリックして色を選択してください。";
+});
+
+
+
+slicePrevCanvas.addEventListener("click", (e) => {
+  if (!transparentPickMode) return;
+
+  const rect = slicePrevCanvas.getBoundingClientRect();
+  const x = Math.floor(e.clientX - rect.left);
+  const y = Math.floor(e.clientY - rect.top);
+
+  const pixel = slicePrevCtx.getImageData(x, y, 1, 1).data;
+
+  pickedColor = { r: pixel[0], g: pixel[1], b: pixel[2] };
+
+  document.getElementById("picked-color-preview").style.background =
+      `rgb(${pickedColor.r},${pickedColor.g},${pickedColor.b})`;
+
+  document.getElementById("transparent-msg").textContent = "色を選択しました。";
+  transparentPickMode = false;
+});
+
+document.getElementById("apply-transparent-color").addEventListener("click", () => {
+  if (!pickedColor || !sliceSourceImage) {
+    alert("透明化したい色を選んでください。");
+    return;
+  }
+
+  // 画像を一度キャンバスへ描く
+  const tmp = document.createElement("canvas");
+  tmp.width = sliceSourceImage.width;
+  tmp.height = sliceSourceImage.height;
+
+  const tctx = tmp.getContext("2d");
+  tctx.drawImage(sliceSourceImage, 0, 0);
+
+  const imgData = tctx.getImageData(0, 0, tmp.width, tmp.height);
+  const data = imgData.data;
+
+  // 閾値 少し緩めに（必要なら調整可能）
+  const threshold = 10;
+
+  for (let i = 0; i < data.length; i += 4) {
+    const r = data[i];
+    const g = data[i + 1];
+    const b = data[i + 2];
+
+    if (Math.abs(r - pickedColor.r) < threshold &&
+        Math.abs(g - pickedColor.g) < threshold &&
+        Math.abs(b - pickedColor.b) < threshold) {
+      data[i + 3] = 0; // 透明
+    }
+  }
+
+  tctx.putImageData(imgData, 0, 0);
+
+  // 透明化後の画像で置き換え
+  const newImg = new Image();
+  newImg.onload = () => {
+    sliceSourceImage = newImg;
+    drawSlicePreview();
+    updatePartialPreview();
+  };
+  newImg.src = tmp.toDataURL();
+
+
+});
+
 /* --------------------
    プレビュー描画（ズーム + 暗幕 + ガイド線）
 -------------------- */
 function drawSlicePreview() {
+  console.log("[DRAW] sliceSourceImage =", sliceSourceImage);
+console.log("[DRAW] canvas =", slicePrevCanvas.width, slicePrevCanvas.height);
+
   if (!sliceSourceImage) return;
 
   const cw = slicePrevCanvas.width;
@@ -646,79 +728,10 @@ function drawSlicePreview() {
     }
   }
 
-document.getElementById("pick-transparent-color").addEventListener("click", () => {
-  transparentPickMode = true;
-
-  const msg = document.getElementById("transparent-msg");
-  msg.textContent = "スライスプレビューをクリックして色を選択してください。";
-});
 
 
 
-slicePrevCanvas.addEventListener("click", (e) => {
-  if (!transparentPickMode) return;
 
-  const rect = slicePrevCanvas.getBoundingClientRect();
-  const x = Math.floor(e.clientX - rect.left);
-  const y = Math.floor(e.clientY - rect.top);
-
-  const pixel = slicePrevCtx.getImageData(x, y, 1, 1).data;
-
-  pickedColor = { r: pixel[0], g: pixel[1], b: pixel[2] };
-
-  document.getElementById("picked-color-preview").style.background =
-      `rgb(${pickedColor.r},${pickedColor.g},${pickedColor.b})`;
-
-  document.getElementById("transparent-msg").textContent = "色を選択しました。";
-  transparentPickMode = false;
-});
-
-
-document.getElementById("apply-transparent-color").addEventListener("click", () => {
-  if (!pickedColor || !sliceSourceImage) {
-    alert("透明化したい色を選んでください。");
-    return;
-  }
-
-  // 画像を一度キャンバスへ描く
-  const tmp = document.createElement("canvas");
-  tmp.width = sliceSourceImage.width;
-  tmp.height = sliceSourceImage.height;
-
-  const tctx = tmp.getContext("2d");
-  tctx.drawImage(sliceSourceImage, 0, 0);
-
-  const imgData = tctx.getImageData(0, 0, tmp.width, tmp.height);
-  const data = imgData.data;
-
-  // 閾値 少し緩めに（必要なら調整可能）
-  const threshold = 10;
-
-  for (let i = 0; i < data.length; i += 4) {
-    const r = data[i];
-    const g = data[i + 1];
-    const b = data[i + 2];
-
-    if (Math.abs(r - pickedColor.r) < threshold &&
-        Math.abs(g - pickedColor.g) < threshold &&
-        Math.abs(b - pickedColor.b) < threshold) {
-      data[i + 3] = 0; // 透明
-    }
-  }
-
-  tctx.putImageData(imgData, 0, 0);
-
-  // 透明化後の画像で置き換え
-  const newImg = new Image();
-  newImg.onload = () => {
-    sliceSourceImage = newImg;
-    drawSlicePreview();
-    updatePartialPreview();
-  };
-  newImg.src = tmp.toDataURL();
-
-
-});
 
 
 // ================================
@@ -782,9 +795,9 @@ if (sliceLineMode) {
   return;
 }
 
-
-
 }
+
+
 
 const slicePartialCanvas = document.getElementById("slice-partial-canvas");
 const slicePartialCtx = slicePartialCanvas.getContext("2d");
