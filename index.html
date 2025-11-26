@@ -1,217 +1,173 @@
 <!DOCTYPE html>
 <html lang="ja">
 <head>
-<meta charset="UTF-8">
-<title>NoWords CharaTool 完全版</title>
-
-<style>
-  body, html {
-    margin: 0;
-    padding: 0;
-    height: 100%;
-    overflow: hidden;
-    background: #1e1e1e;
-    color: #ddd;
-    font-family: sans-serif;
-  }
-
-  /* 左右レイアウトのメインコンテナ */
-  #container {
-    display: flex;
-    width: 100vw;
-    height: 100vh;
-    overflow: hidden;
-  }
-
-  /* 両ウィンドウ共通 */
-  .panel {
-    flex: 1 1 50%;
-    background: #202020;
-    position: relative;
-    overflow: hidden;
-  }
-
-  /* 区切りバー（ドラッグで幅変更） */
-  #divider {
-    width: 6px;
-    background: #444;
-    cursor: col-resize;
-  }
-
-  /* スライス側全体レイアウト */
-  #slice-area {
-    position: absolute;
-    inset: 0;
-    display: flex;
-    flex-direction: column;
-  }
-
-  #slice-preview-wrap {
-    flex: 1;
-    background: #000;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-  }
-
-  #slice-preview-canvas {
-    background: #111;
-  }
-
-  #slice-settings {
-    padding: 10px;
-    background: #2a2a2a;
-    border-top: 1px solid #444;
-  }
-
-  #slice-settings input {
-    width: 60px;
-    margin-right: 8px;
-  }
-
-  /* 切り出し結果リスト */
-  #slice-list {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 4px;
-    padding: 6px;
-    overflow-y: auto;
-    background: #181818;
-    border-top: 1px solid #333;
-    height: 120px;
-  }
-
-  #slice-list canvas {
-    border: 1px solid #444;
-  }
-
-  /* グリッド側 UI */
-  #grid-top-ui {
-    position: absolute;
-    top: 10px;
-    left: 10px;
-    padding: 8px;
-    background: rgba(0,0,0,0.5);
-    border-radius: 6px;
-  }
-  #grid-top-ui input {
-    width: 70px;
-    margin-right: 5px;
-  }
-
-  #grid-canvas {
-    background: #111;
-    display: block;
-    margin: 0;
-  }
-</style>
+  <meta charset="UTF-8">
+  <title>NoWords CharaTool（β）</title>
+  <link rel="stylesheet" href="style.css">
 </head>
 <body>
 
-<div id="container">
+<div id="app">
 
-  <!-- ▼ 左：スライスウィンドウ -------------------------------- -->
-  <div id="sliceWindow" class="panel">
+  <!-- ==========================================
+        1. スライス設定（画像読込 ＆ プレビュー）
+  =========================================== -->
+  <div id="slice-panel">
+    <h2>スライス設定</h2>
 
-    <div id="slice-area">
-      
-      <!-- スライスプレビュー -->
-      <div id="slice-preview-wrap">
-        <canvas id="slice-preview-canvas" width="300" height="300"></canvas>
-      </div>
+    <input type="file" id="slice-file"><h3>透明化</h3>
+<button id="pick-transparent-color">透明化する色を選ぶ</button>
+<button id="apply-transparent-color">選択色を透明化</button><div id="transparent-msg" style="margin-top:5px; color:#8f8;"></div>
 
-      <!-- スライス設定フォーム -->
-      <div id="slice-settings">
+<div id="picked-color-preview" style="width:40px; height:20px; border:1px solid #fff; margin-top:5px;"></div>
 
-        <div style="margin-bottom:6px;">
-          <input type="file" id="slice-file">
-        </div>
 
-        <label>W:</label><input id="slice-w" type="number" value="64">
-        <label>H:</label><input id="slice-h" type="number" value="64">
-        <label>Cols:</label><input id="slice-cols" type="number" value="3">
-        <label>Rows:</label><input id="slice-rows" type="number" value="4">
-
-        <br><br>
-
-        <label>OffX:</label><input id="slice-offx" type="number" value="0">
-        <label>OffY:</label><input id="slice-offy" type="number" value="0">
-
-        <button id="slice-run" style="margin-left:10px;">切り出し</button>
-      </div>
-
-      <!-- スライス結果リスト -->
-      <div id="slice-list"></div>
-
+    <div class="slice-setting">
+      <label>コマ幅: <input id="slice-w" type="number" value="64"></label>
+      <label>コマ高: <input id="slice-h" type="number" value="64"></label>
     </div>
+
+    <div class="slice-setting">
+      <label>横コマ数: <input id="slice-cols" type="number" value="3"></label>
+      <label>縦コマ数: <input id="slice-rows" type="number" value="4"></label>
+    </div>
+
+    <div class="slice-setting">
+      <label>Xオフセット: <input id="slice-offx" type="number" value="0"></label>
+      <label>Yオフセット: <input id="slice-offy" type="number" value="0"></label>
+    </div>
+
+    <div class="slice-setting">
+  <label>ズーム倍率:
+    <input id="slice-scale" type="number" value="200">
+  </label>
+  <button id="slice-scale-apply">適用</button>
+</div>
+
+
+    <button id="slice-run">切り分け実行</button>
+
+            <h3>ラインスライス</h3>
+<button id="slice-top-row-mode">上一行で切る</button>
+<button id="slice-left-col-mode">左一列で切る</button>
+<button id="slice-cut-one">1コマ切る</button>
+
+    <h3>スライスプレビュー</h3>
+    <div id="slice-preview-container">
+      <canvas id="slice-preview-canvas"></canvas>
+    </div>
+
+
+<h3>部分スライスプレビュー</h3>
+<button id="slice-cut-one-partial" style="margin-top:10px;">1コマ切る</button> <!-- ★変更 -->
+<div id="slice-partial-container"
+     style="width:500px; height:500px;
+            background:transparent; border:1px solid #444; margin-top:10px;">
+
+
+<canvas id="slice-partial-canvas"
+        width="500" height="500"
+        style="display:block; background:transparent;"></canvas>
+
+</div>
+
+
+
+<h3>スライス後のコマ一覧</h3>
+<div id="slice-list"></div>
+
   </div>
 
-  <!-- ▼ 真ん中：ドラッグ境界 -------------------------------- -->
-  <div id="divider"></div>
+
+  <!-- ==========================================
+        2. グリッド配置エリア
+  =========================================== -->
+  <div id="grid-panel">
+    <h2>配置グリッド</h2>
+
+    <div id="grid-settings">
+      <label>マス横数: <input id="grid-cols" type="number" value="9"></label>
+      <label>マス縦数: <input id="grid-rows" type="number" value="6"></label>
+      <label>セル幅(px): <input id="cell-width" type="number" value="64"></label>
+      <label>セル高(px): <input id="cell-height" type="number" value="64"></label>
+      <button id="grid-apply">反映</button>
+    </div>
+
+    <div id="grid-container">
+      <canvas id="grid-canvas"></canvas>
+    </div>
+
+    <button id="save-png">PNGとして保存</button>
+  </div>
 
 
-  <!-- ▼ 右：配置グリッド -------------------------------- -->
- <div id="slice-panel" class="panel">
+  <!-- ==========================================
+        3. 微調整パネル（配置済みコマ）
+  =========================================== -->
+  <div id="adjust-panel">
+    <h2>微調整</h2>
 
-    <!-- グリッド上の設定 UI -->
-    <div id="grid-top-ui">
-      <div>
-        <label>Cols:</label>
-        <input id="grid-cols" type="number" value="9">
+    <div id="adjust-selected">
+      <p>選択中: <span id="selected-pos">なし</span></p>
+      <button id="flip-horizontal">左右反転</button><br>
+      <label>Xオフセット: <input id="offset-x" type="number" value="0"></label><br>
+      <label>Yオフセット: <input id="offset-y" type="number" value="0"></label>
 
-        <label>Rows:</label>
-        <input id="grid-rows" type="number" value="6">
-      </div>
-
-      <div style="margin-top:6px;">
-        <label>CellW:</label>
-        <input id="cell-width" type="number" value="64">
-
-        <label>CellH:</label>
-        <input id="cell-height" type="number" value="64">
-
-        <button id="grid-apply">適用</button>
-      </div>
-
-      <div style="margin-top:10px;">
-        選択セル：<span id="selected-pos">なし</span>
-      </div>
-
-      <div style="margin-top:8px;">
-        OffX:<input id="offset-x" type="number" value="0">
-        OffY:<input id="offset-y" type="number" value="0">
-      </div>
-
-      <!-- 微調整ボタン -->
-      <div id="offset-buttons" style="margin-top:8px; display:flex; gap:4px; flex-wrap:wrap;">
+      <div id="offset-buttons">
         <button data-move="up">↑</button>
         <button data-move="down">↓</button>
         <button data-move="left">←</button>
         <button data-move="right">→</button>
-        <button id="offset-reset">リセット</button>
       </div>
 
-      <!-- 行・列調整 -->
-      <div style="margin-top:10px;">
-        Row:<input id="row-target" type="number" value="0" style="width:40px;">
-        <button id="row-up">↑行</button>
-        <button id="row-down">↓行</button>
-      </div>
-
-      <div style="margin-top:6px;">
-        Col:<input id="col-target" type="number" value="0" style="width:40px;">
-        <button id="col-left">←列</button>
-        <button id="col-right">→列</button>
-      </div>
-
-      <div style="margin-top:10px;">
-        <button id="save-png">PNG保存</button>
-      </div>
+      <button id="offset-reset">リセット</button>
+      <div id="adjust-trim">
+  <h3>トリミング</h3>
+  <label>左: <input id="trim-left" type="number" value="0"></label><br>
+  <label>上: <input id="trim-top" type="number" value="0"></label><br>
+  <label>右: <input id="trim-right" type="number" value="0"></label><br>
+  <label>下: <input id="trim-bottom" type="number" value="0"></label><br>
+  <button id="trim-reset">リセット</button>
+</div>
     </div>
 
-    <!-- 配置グリッド -->
-    <canvas id="grid-canvas"></canvas>
+    <hr>
+ <!--
+    <div id="adjust-row">
+      <h3>行 全体の調整</h3>
+      <label>行(row): <input id="row-target" type="number" value="0"></label>
+      <button id="row-up">行 ↑</button>
+      <button id="row-down">行 ↓</button>
+    </div>
+
+    <div id="adjust-col">
+      <h3>列 全体の調整</h3>
+      <label>列(col): <input id="col-target" type="number" value="0"></label>
+      <button id="col-left">列 ←</button>
+      <button id="col-right">列 →</button>
+    </div>-->
+<hr>
+
+<h3>↓頑張って作ったゲームです！<br>500円なのでよかったら買ってみてね！</h3>
+
+<a href="https://store.steampowered.com/app/3882560/ShellPieces/"
+   target="_blank">
+  <img src="header.png"
+       style="
+         width: 280px;
+         border: 1px solid #666;
+         background: #111;
+         display:block;
+         margin-top:6px;
+       ">
+</a>
   </div>
+
+
 
 </div>
 
+<script src="script.js"></script>
+
+</body>
+</html>
