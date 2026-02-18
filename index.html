@@ -92,6 +92,20 @@
       <label>セル高(px): <input id="cell-height" type="number" value="64"></label>
       <button id="grid-apply">反映</button>
     </div>
+<div class="grid-save-row" style="margin-top:8px; display:flex; gap:8px; flex-wrap:wrap; align-items:center;">
+  <input id="preset-name" type="text" placeholder="プリセット名（例: 128x128_9x6）" style="min-width:240px;">
+  <button id="preset-save" type="button">名前を付けて保存</button>
+
+  <select id="preset-select" style="min-width:220px;">
+    <option value="">（プリセットを選択）</option>
+  </select>
+
+  <button id="preset-load" type="button">読込</button>
+  <button id="preset-delete" type="button">削除</button>
+
+  <span id="grid-save-status" style="opacity:0.8;"></span>
+</div>
+
 
     <div id="grid-container">
       <canvas id="grid-canvas"></canvas>

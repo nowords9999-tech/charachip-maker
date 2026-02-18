@@ -6,6 +6,21 @@
         配置グリッド / 微調整 / 行列調整 / 右クリック削除
         PNG保存 / 設定保存
 ============================================================ */
+/* =========================
+   DOM取得ヘルパ
+========================= */
+function $id(id) {
+  return document.getElementById(id);
+}
+function onId(id, ev, fn, options) {
+  const el = document.getElementById(id);
+  if (!el) {
+    console.warn(`[CharaTool] Missing element: #${id} (skip ${ev})`);
+    return null;
+  }
+  el.addEventListener(ev, fn, options);
+  return el;
+}
 
 /* =========================
    グリッド基本設定
@@ -28,6 +43,238 @@ const ctx = gridCanvas.getContext("2d");
 
 let grid = [];
 let selectedCell = null;
+
+/* =========================
+   複数選択（Ctrl+Click）
+========================= */
+let selectedCells = new Set(); // key = "r,c"
+
+function cellKey(r, c) { return `${r},${c}`; }
+
+function parseCellKey(key) {
+  const [r, c] = key.split(",").map(n => parseInt(n, 10));
+  return { row: r, col: c };
+}
+
+function clearSelection() {
+  selectedCells.clear();
+  selectedCell = null;
+  const el = document.getElementById("selected-pos");
+  if (el) el.textContent = "なし";
+}
+
+function setSingleSelection(row, col) {
+  selectedCells.clear();
+  selectedCells.add(cellKey(row, col));
+  selectedCell = { row, col };
+  updateSelectedPosLabel();
+}
+
+function toggleSelection(row, col) {
+  const key = cellKey(row, col);
+  if (selectedCells.has(key)) {
+    selectedCells.delete(key);
+    // primary が外れたら別のを primary にする
+    if (selectedCell && selectedCell.row === row && selectedCell.col === col) {
+      const first = selectedCells.values().next().value;
+      selectedCell = first ? parseCellKey(first) : null;
+    }
+  } else {
+    selectedCells.add(key);
+    selectedCell = { row, col }; // 最後に触ったのを primary に
+  }
+  updateSelectedPosLabel();
+}
+
+function getSelectedList() {
+  return Array.from(selectedCells).map(parseCellKey);
+}
+
+function updateSelectedPosLabel() {
+  const el = document.getElementById("selected-pos");
+  if (!el) return;
+
+  const n = selectedCells.size;
+  if (n === 0) {
+    el.textContent = "なし";
+    return;
+  }
+
+  if (selectedCell) {
+    el.textContent = `(${selectedCell.row}, ${selectedCell.col}) +${n - 1}`;
+  } else {
+    el.textContent = `${n}個選択`;
+  }
+}
+
+/* =========================
+   グリッドJSON保存／読込（localStorage）
+========================= */
+const GRID_STATE_STORAGE_KEY = "NoWordsCharaTool.gridState.v1";
+
+let _gridSaveTimer = null;
+function requestGridAutoSave(reason = "") {
+  // 連打対策（オフセットやトリムのinputで連続発火するため）
+  if (_gridSaveTimer) clearTimeout(_gridSaveTimer);
+  _gridSaveTimer = setTimeout(() => {
+    saveGridStateToLocalStorage(reason);
+  }, 200);
+}
+
+function setGridSaveStatus(text) {
+  const el = document.getElementById("grid-save-status");
+  if (!el) return;
+  el.textContent = text;
+  // ちょいフェード（任意）
+  setTimeout(() => {
+    if (el.textContent === text) el.textContent = "";
+  }, 1500);
+}
+
+function serializeGridState() {
+  // 画像は dataURL（img.src）として保持する
+  const cells = grid.map(row =>
+    row.map(cell => {
+      if (!cell || !cell.img) return null;
+      return {
+        imgSrc: cell.img.src || null,
+        offsetX: cell.offsetX || 0,
+        offsetY: cell.offsetY || 0,
+        trimLeft: cell.trimLeft || 0,
+        trimTop: cell.trimTop || 0,
+        trimRight: cell.trimRight || 0,
+        trimBottom: cell.trimBottom || 0,
+        flipX: !!cell.flipX
+      };
+    })
+  );
+
+  return {
+    version: 1,
+    gridCols,
+    gridRows,
+    cellW,
+    cellH,
+    cells
+  };
+}
+
+function saveGridStateToLocalStorage(reason = "") {
+  try {
+    const state = serializeGridState();
+    localStorage.setItem(GRID_STATE_STORAGE_KEY, JSON.stringify(state));
+    setGridSaveStatus(reason ? `保存: ${reason}` : "保存しました");
+  } catch (e) {
+    console.error("Grid save failed:", e);
+    alert("保存に失敗しました（容量不足の可能性）");
+  }
+}
+
+function applyGridSettingsFromState(state) {
+  gridCols = state.gridCols;
+  gridRows = state.gridRows;
+  cellW = state.cellW;
+  cellH = state.cellH;
+
+  // UI入力欄も合わせる
+  const colsEl = document.getElementById("grid-cols");
+  const rowsEl = document.getElementById("grid-rows");
+  const cwEl = document.getElementById("cell-width");
+  const chEl = document.getElementById("cell-height");
+
+  if (colsEl) colsEl.value = String(gridCols);
+  if (rowsEl) rowsEl.value = String(gridRows);
+  if (cwEl) cwEl.value = String(cellW);
+  if (chEl) chEl.value = String(cellH);
+}
+
+
+/* =========================
+   プリセットUI：イベント登録
+========================= */
+document.addEventListener("DOMContentLoaded", () => {
+  const nameEl = document.getElementById("preset-name");
+  const selEl = document.getElementById("preset-select");
+  const saveBtn = document.getElementById("preset-save");
+  const loadBtn = document.getElementById("preset-load");
+  const delBtn  = document.getElementById("preset-delete");
+
+  // 初期：一覧更新
+  refreshPresetSelectUI();
+
+  if (saveBtn) {
+    saveBtn.addEventListener("click", () => {
+      const name = normalizePresetName(nameEl ? nameEl.value : "");
+      if (!name) {
+        alert("プリセット名を入力してください");
+        return;
+      }
+
+      const map = loadPresetsMap();
+      map[name] = collectToolSettings(); // ←入力欄優先版 collectToolSettings が前提
+      map[name].savedAt = new Date().toISOString();
+
+      if (savePresetsMap(map)) {
+        // ついでに「最後に使った設定」も更新しておくと便利
+        try { localStorage.setItem(TOOL_SETTINGS_KEY, JSON.stringify(map[name])); } catch(e){}
+        refreshPresetSelectUI();
+        if (selEl) selEl.value = name;
+        setPresetStatus(`保存しました: ${name}`);
+      }
+    });
+  }
+
+  if (loadBtn) {
+    loadBtn.addEventListener("click", () => {
+      const name = selEl ? selEl.value : "";
+      if (!name) {
+        alert("プリセットを選択してください");
+        return;
+      }
+
+      const map = loadPresetsMap();
+      const data = map[name];
+      if (!data) {
+        alert("プリセットが見つかりません");
+        refreshPresetSelectUI();
+        return;
+      }
+
+      applyToolSettings(data);
+
+      // 最後に使った設定としても保存
+      try { localStorage.setItem(TOOL_SETTINGS_KEY, JSON.stringify(data)); } catch(e){}
+
+      setPresetStatus(`読込しました: ${name}`);
+    });
+  }
+
+  if (delBtn) {
+    delBtn.addEventListener("click", () => {
+      const name = selEl ? selEl.value : "";
+      if (!name) {
+        alert("削除するプリセットを選択してください");
+        return;
+      }
+
+      const map = loadPresetsMap();
+      if (!map[name]) {
+        refreshPresetSelectUI();
+        return;
+      }
+
+      delete map[name];
+      if (savePresetsMap(map)) {
+        refreshPresetSelectUI();
+        if (selEl) selEl.value = "";
+        setPresetStatus(`削除しました: ${name}`);
+      }
+    });
+  }
+});
+
+
+
 
 /* =========================
    グリッド初期化
@@ -144,36 +391,218 @@ if (cell && cell.img) {
     }
   }
 
+// --- 選択ハイライト（複数） ---
+if (selectedCells && selectedCells.size > 0) {
+  ctx.lineWidth = 2;
+
+  // まず全選択を薄い黄色
+  ctx.strokeStyle = "rgba(255,255,0,0.55)";
+  for (const key of selectedCells) {
+    const { row, col } = parseCellKey(key);
+    ctx.strokeRect(col * cellW + 1, row * cellH + 1, cellW - 2, cellH - 2);
+  }
+
+  // primary（最後に触ったセル）は濃い黄色
   if (selectedCell) {
-    ctx.strokeStyle = "rgba(255,255,0,0.9)";
-    ctx.lineWidth = 2;
+    ctx.strokeStyle = "rgba(255,255,0,0.95)";
     ctx.strokeRect(
       selectedCell.col * cellW + 1,
       selectedCell.row * cellH + 1,
       cellW - 2,
       cellH - 2
     );
-    ctx.lineWidth = 1;
   }
+
+  ctx.lineWidth = 1;
+}
+
 
   ctx.restore();
 }
 
 //左右反転
 document.getElementById("flip-horizontal").addEventListener("click", () => {
-  if (!selectedCell) return;
+  if (!selectedCells || selectedCells.size === 0) return;
 
-  const { row, col } = selectedCell;
-  const cell = grid[row][col];
-  if (!cell) return;
-
-  cell.flipX = !cell.flipX;  // ←トグル切替
+  for (const { row, col } of getSelectedList()) {
+    const cell = grid[row][col];
+    if (!cell) continue;
+    cell.flipX = !cell.flipX;
+  }
 
   drawGrid();
 });
 
 /* =========================
-   グリッドクリックで選択
+   設定（スライス＋グリッド）保存／読込  v1
+   - 未定義変数(sliceCols等)を使わない
+========================= */
+const TOOL_SETTINGS_KEY = "NoWordsCharaTool.settings.v1";
+
+function collectToolSettings() {
+  const num = (id, fallback) => {
+    const el = document.getElementById(id);
+    const v = el ? Number(el.value) : NaN;
+    return Number.isFinite(v) ? v : fallback;
+  };
+
+  return {
+    version: 1,
+
+    // --- グリッド設定：入力欄の値を優先して保存 ---
+    grid: {
+      cols:  num("grid-cols",   gridCols),
+      rows:  num("grid-rows",   gridRows),
+      cellW: num("cell-width",  cellW),
+      cellH: num("cell-height", cellH),
+    },
+
+    // --- スライス設定：入力欄＋プレビュー状態を保存 ---
+    slice: {
+      w:    num("slice-w",   null),
+      h:    num("slice-h",   null),
+      cols: num("slice-cols", null),
+      rows: num("slice-rows", null),
+
+      prevScale:   slicePrevScale,
+      prevOffsetX: slicePrevOffsetX,
+      prevOffsetY: slicePrevOffsetY,
+
+      lineMode: sliceLineMode,
+      partialLineIndex: partialLineIndex
+    }
+  };
+}
+
+
+function applyToolSettings(s) {
+  if (!s || s.version !== 1) return;
+
+  // ---- グリッド設定 ----
+  if (s.grid) {
+    gridCols = Number(s.grid.cols) || gridCols;
+    gridRows = Number(s.grid.rows) || gridRows;
+    cellW = Number(s.grid.cellW) || cellW;
+    cellH = Number(s.grid.cellH) || cellH;
+
+    if ($id("grid-cols")) $id("grid-cols").value = String(gridCols);
+    if ($id("grid-rows")) $id("grid-rows").value = String(gridRows);
+    if ($id("cell-width")) $id("cell-width").value = String(cellW);
+    if ($id("cell-height")) $id("cell-height").value = String(cellH);
+
+    // 設定だけ復元なので中身はリセット推奨
+    resetGrid();
+    resizeCanvas();
+    drawGrid();
+  }
+
+  // ---- スライス設定 ----
+  if (s.slice) {
+    if ($id("slice-w") && s.slice.w != null) $id("slice-w").value = String(s.slice.w);
+    if ($id("slice-h") && s.slice.h != null) $id("slice-h").value = String(s.slice.h);
+    if ($id("slice-cols") && s.slice.cols != null) $id("slice-cols").value = String(s.slice.cols);
+    if ($id("slice-rows") && s.slice.rows != null) $id("slice-rows").value = String(s.slice.rows);
+
+    slicePrevScale = Number(s.slice.prevScale) || slicePrevScale;
+    slicePrevOffsetX = Number(s.slice.prevOffsetX) || slicePrevOffsetX;
+    slicePrevOffsetY = Number(s.slice.prevOffsetY) || slicePrevOffsetY;
+
+    if (typeof s.slice.lineMode !== "undefined") sliceLineMode = s.slice.lineMode;
+    if (typeof s.slice.partialLineIndex !== "undefined") partialLineIndex = s.slice.partialLineIndex;
+
+    // UIのズーム％表示も合わせる（存在すれば）
+    if ($id("slice-scale")) $id("slice-scale").value = String(Math.round(slicePrevScale * 100));
+
+    drawSlicePreview();
+    if (typeof updatePartialPreview === "function") updatePartialPreview();
+  }
+}
+
+function saveToolSettings(reason = "") {
+  try {
+    localStorage.setItem(TOOL_SETTINGS_KEY, JSON.stringify(collectToolSettings()));
+    // console.log("settings saved:", reason);
+  } catch (e) {
+    console.error("settings save failed:", e);
+  }
+}
+
+function loadToolSettings() {
+  const raw = localStorage.getItem(TOOL_SETTINGS_KEY);
+  if (!raw) return false;
+  try {
+    applyToolSettings(JSON.parse(raw));
+    return true;
+  } catch (e) {
+    console.error("settings load failed:", e);
+    return false;
+  }
+}
+
+/* =========================
+   プリセット（複数）保存／読込
+========================= */
+const TOOL_PRESETS_KEY = "NoWordsCharaTool.presets.v1";
+
+function loadPresetsMap() {
+  try {
+    const raw = localStorage.getItem(TOOL_PRESETS_KEY);
+    const obj = raw ? JSON.parse(raw) : {};
+    return (obj && typeof obj === "object") ? obj : {};
+  } catch (e) {
+    console.error("presets load failed:", e);
+    return {};
+  }
+}
+
+function savePresetsMap(map) {
+  try {
+    localStorage.setItem(TOOL_PRESETS_KEY, JSON.stringify(map));
+    return true;
+  } catch (e) {
+    console.error("presets save failed:", e);
+    alert("プリセット保存に失敗しました（容量不足の可能性）");
+    return false;
+  }
+}
+
+function normalizePresetName(name) {
+  return String(name || "").trim();
+}
+
+function refreshPresetSelectUI() {
+  const sel = document.getElementById("preset-select");
+  if (!sel) return;
+
+  const map = loadPresetsMap();
+  const names = Object.keys(map).sort((a,b)=>a.localeCompare(b, "ja"));
+
+  const current = sel.value;
+
+  sel.innerHTML = `<option value="">（プリセットを選択）</option>`;
+  for (const n of names) {
+    const opt = document.createElement("option");
+    opt.value = n;
+    opt.textContent = n;
+    sel.appendChild(opt);
+  }
+
+  // できれば選択保持
+  if (names.includes(current)) sel.value = current;
+}
+
+function setPresetStatus(text) {
+  const el = document.getElementById("grid-save-status");
+  if (!el) return;
+  el.textContent = text;
+  setTimeout(() => {
+    if (el.textContent === text) el.textContent = "";
+  }, 1500);
+}
+
+
+/* =========================
+   グリッドクリックで選択（Ctrlで複数）
 ========================= */
 gridCanvas.addEventListener("click", (e) => {
   const rect = gridCanvas.getBoundingClientRect();
@@ -193,7 +622,7 @@ gridCanvas.addEventListener("click", (e) => {
   const offsetX = (cw - realW * scale) / 2;
   const offsetY = (ch - realH * scale) / 2;
 
-  // --- 逆変換して実際のグリッド座標に戻す ---
+  // --- 逆変換 ---
   const x = (rawX - offsetX) / scale;
   const y = (rawY - offsetY) / scale;
 
@@ -203,25 +632,44 @@ gridCanvas.addEventListener("click", (e) => {
   if (row < 0 || row >= gridRows) return;
   if (col < 0 || col >= gridCols) return;
 
-  selectedCell = { row, col };
+  // Ctrl押し＝トグル、通常＝単一選択
+  if (e.ctrlKey) toggleSelection(row, col);
+  else setSingleSelection(row, col);
 
-  document.getElementById("selected-pos").textContent = `(${row}, ${col})`;
-
-  const cell = grid[row][col];
+  // UI欄（primary の値を表示）
+  const cell = selectedCell ? grid[selectedCell.row][selectedCell.col] : null;
   document.getElementById("offset-x").value = cell ? cell.offsetX : 0;
   document.getElementById("offset-y").value = cell ? cell.offsetY : 0;
 
   drawGrid();
 });
 
+
 /* =========================
-   右クリック削除
+   右クリック削除（スケール表示対応）
 ========================= */
 gridCanvas.addEventListener("contextmenu", (e) => {
   e.preventDefault();
+
   const rect = gridCanvas.getBoundingClientRect();
-  const x = e.clientX - rect.left;
-  const y = e.clientY - rect.top;
+  const rawX = e.clientX - rect.left;
+  const rawY = e.clientY - rect.top;
+
+  // drawGrid() と同じ計算
+  const realW = gridCols * cellW;
+  const realH = gridRows * cellH;
+
+  const container = document.getElementById("grid-container");
+  const cw = container.clientWidth;
+  const ch = container.clientHeight;
+
+  const scale = Math.min(cw / realW, ch / realH);
+  const offsetX = (cw - realW * scale) / 2;
+  const offsetY = (ch - realH * scale) / 2;
+
+  // 逆変換（スケール解除）
+  const x = (rawX - offsetX) / scale;
+  const y = (rawY - offsetY) / scale;
 
   const col = Math.floor(x / cellW);
   const row = Math.floor(y / cellH);
@@ -229,11 +677,24 @@ gridCanvas.addEventListener("contextmenu", (e) => {
   if (row < 0 || row >= gridRows) return;
   if (col < 0 || col >= gridCols) return;
 
-  grid[row][col] = null;
-  selectedCell = null;
-  document.getElementById("selected-pos").textContent = "なし";
+grid[row][col] = null;
+
+// 選択からも外す
+const k = cellKey(row, col);
+if (selectedCells.has(k)) {
+  selectedCells.delete(k);
+  if (selectedCell && selectedCell.row === row && selectedCell.col === col) {
+    const first = selectedCells.values().next().value;
+    selectedCell = first ? parseCellKey(first) : null;
+  }
+  updateSelectedPosLabel();
+  if (!selectedCell) document.getElementById("selected-pos").textContent = "なし";
+}
+
+
   drawGrid();
 });
+
 
 /* =========================
    ドラッグ＆ドロップで配置
@@ -278,6 +739,7 @@ gridCanvas.addEventListener("drop", (e) => {
     selectedCell = { row, col };
     document.getElementById("selected-pos").textContent = `(${row}, ${col})`;
     drawGrid();
+    
     grid[row][col] = {
   img,
   offsetX: 0,
@@ -316,49 +778,61 @@ document.getElementById("grid-apply").addEventListener("click", () => {
    個別オフセット調整
 ========================= */
 function updateSelectedOffsets() {
-  if (!selectedCell) return;
+  if (!selectedCells || selectedCells.size === 0) return;
 
-  const { row, col } = selectedCell;
-  const cell = grid[row][col];
-  if (!cell) return;
+  const ox = parseInt(document.getElementById("offset-x").value);
+  const oy = parseInt(document.getElementById("offset-y").value);
 
-  cell.offsetX = parseInt(document.getElementById("offset-x").value);
-  cell.offsetY = parseInt(document.getElementById("offset-y").value);
+  for (const { row, col } of getSelectedList()) {
+    const cell = grid[row][col];
+    if (!cell) continue;
+    cell.offsetX = ox;
+    cell.offsetY = oy;
+  }
 
   drawGrid();
 }
+
 
 document.getElementById("offset-x").addEventListener("input", updateSelectedOffsets);
 document.getElementById("offset-y").addEventListener("input", updateSelectedOffsets);
 
 //トリミング
 function updateTrim() {
-  if (!selectedCell) return;
+  if (!selectedCells || selectedCells.size === 0) return;
 
-  const { row, col } = selectedCell;
-  const cell = grid[row][col];
-  if (!cell) return;
+  const l = parseInt(document.getElementById("trim-left").value);
+  const t = parseInt(document.getElementById("trim-top").value);
+  const r = parseInt(document.getElementById("trim-right").value);
+  const b = parseInt(document.getElementById("trim-bottom").value);
 
-  cell.trimLeft   = parseInt(document.getElementById("trim-left").value);
-  cell.trimTop    = parseInt(document.getElementById("trim-top").value);
-  cell.trimRight  = parseInt(document.getElementById("trim-right").value);
-  cell.trimBottom = parseInt(document.getElementById("trim-bottom").value);
+  for (const { row, col } of getSelectedList()) {
+    const cell = grid[row][col];
+    if (!cell) continue;
+    cell.trimLeft = l;
+    cell.trimTop = t;
+    cell.trimRight = r;
+    cell.trimBottom = b;
+  }
 
   drawGrid();
 }
+
 
 ["trim-left","trim-top","trim-right","trim-bottom"].forEach(id=>{
   document.getElementById(id).addEventListener("input", updateTrim);
 });
 
-document.getElementById("trim-reset").addEventListener("click",()=>{
-  if (!selectedCell) return;
-  const { row, col } = selectedCell;
-  const cell = grid[row][col];
-  if (!cell) return;
+document.getElementById("trim-reset").addEventListener("click", () => {
+  if (!selectedCells || selectedCells.size === 0) return;
 
-  cell.trimLeft = cell.trimTop = cell.trimRight = cell.trimBottom = 0;
+  for (const { row, col } of getSelectedList()) {
+    const cell = grid[row][col];
+    if (!cell) continue;
+    cell.trimLeft = cell.trimTop = cell.trimRight = cell.trimBottom = 0;
+  }
 
+  // UIも0に（代表）
   document.getElementById("trim-left").value = 0;
   document.getElementById("trim-top").value = 0;
   document.getElementById("trim-right").value = 0;
@@ -368,44 +842,57 @@ document.getElementById("trim-reset").addEventListener("click",()=>{
 });
 
 
+
 document.querySelectorAll("#offset-buttons button").forEach(btn => {
   btn.addEventListener("click", () => {
-    if (!selectedCell) return;
-    const { row, col } = selectedCell;
-    const cell = grid[row][col];
-    if (!cell) return;
+    if (!selectedCells || selectedCells.size === 0) return;
 
     const move = btn.dataset.move;
-    if (move === "up") cell.offsetY -= 1;
-    if (move === "down") cell.offsetY += 1;
-    if (move === "left") cell.offsetX -= 1;
-    if (move === "right") cell.offsetX += 1;
 
-    document.getElementById("offset-x").value = cell.offsetX;
-    document.getElementById("offset-y").value = cell.offsetY;
+    for (const { row, col } of getSelectedList()) {
+      const cell = grid[row][col];
+      if (!cell) continue;
+
+      if (move === "up") cell.offsetY -= 1;
+      if (move === "down") cell.offsetY += 1;
+      if (move === "left") cell.offsetX -= 1;
+      if (move === "right") cell.offsetX += 1;
+    }
+
+    // primary の値をUIに反映
+    if (selectedCell) {
+      const p = grid[selectedCell.row][selectedCell.col];
+      document.getElementById("offset-x").value = p ? p.offsetX : 0;
+      document.getElementById("offset-y").value = p ? p.offsetY : 0;
+    }
 
     drawGrid();
   });
 });
 
 document.getElementById("offset-reset").addEventListener("click", () => {
-  if (!selectedCell) return;
-  const { row, col } = selectedCell;
-  const cell = grid[row][col];
-  if (!cell) return;
+  if (!selectedCells || selectedCells.size === 0) return;
 
-  cell.offsetX = 0;
-  cell.offsetY = 0;
-  document.getElementById("offset-x").value = 0;
-  document.getElementById("offset-y").value = 0;
+  for (const { row, col } of getSelectedList()) {
+    const cell = grid[row][col];
+    if (!cell) continue;
+    cell.offsetX = 0;
+    cell.offsetY = 0;
+  }
+
+  if (selectedCell) {
+    document.getElementById("offset-x").value = 0;
+    document.getElementById("offset-y").value = 0;
+  }
 
   drawGrid();
 });
 
+
 /* =========================
    行・列の一括調整
-========================= */
-/*document.getElementById("row-up").addEventListener("click", () => {
+========================= 
+document.getElementById("row-up").addEventListener("click", () => {
   let r = parseInt(document.getElementById("row-target").value);
   if (r < 0 || r >= gridRows) return;
   for (let c = 0; c < gridCols; c++) {
@@ -549,18 +1036,13 @@ let partialLineIndex = 0;    // ★ 追加：何コマ目から残りを表示�
    ファイル読込
 -------------------- */
 document.getElementById("slice-file").addEventListener("change", (e) => {
-  console.log("[LOAD] file changed");
-
   const file = e.target.files[0];
   if (!file) return;
 
 const reader = new FileReader();
 reader.onload = function (ev) {
-  console.log("[LOAD] reader onload");
-
   sliceSourceImage = new Image();
   sliceSourceImage.onload = () => {
-console.log("[LOAD] image.onload fired");
 
 slicePrevCanvas.width = 500;
 slicePrevCanvas.height = 500;
@@ -594,87 +1076,10 @@ if (sliceLineMode) updatePartialPreview();
 
   reader.readAsDataURL(file);
 });
-
-document.getElementById("pick-transparent-color").addEventListener("click", () => {
-  transparentPickMode = true;
-
-  const msg = document.getElementById("transparent-msg");
-  msg.textContent = "スライスプレビューをクリックして色を選択してください。";
-});
-
-
-
-slicePrevCanvas.addEventListener("click", (e) => {
-  if (!transparentPickMode) return;
-
-  const rect = slicePrevCanvas.getBoundingClientRect();
-  const x = Math.floor(e.clientX - rect.left);
-  const y = Math.floor(e.clientY - rect.top);
-
-  const pixel = slicePrevCtx.getImageData(x, y, 1, 1).data;
-
-  pickedColor = { r: pixel[0], g: pixel[1], b: pixel[2] };
-
-  document.getElementById("picked-color-preview").style.background =
-      `rgb(${pickedColor.r},${pickedColor.g},${pickedColor.b})`;
-
-  document.getElementById("transparent-msg").textContent = "色を選択しました。";
-  transparentPickMode = false;
-});
-
-document.getElementById("apply-transparent-color").addEventListener("click", () => {
-  if (!pickedColor || !sliceSourceImage) {
-    alert("透明化したい色を選んでください。");
-    return;
-  }
-
-  // 画像を一度キャンバスへ描く
-  const tmp = document.createElement("canvas");
-  tmp.width = sliceSourceImage.width;
-  tmp.height = sliceSourceImage.height;
-
-  const tctx = tmp.getContext("2d");
-  tctx.drawImage(sliceSourceImage, 0, 0);
-
-  const imgData = tctx.getImageData(0, 0, tmp.width, tmp.height);
-  const data = imgData.data;
-
-  // 閾値 少し緩めに（必要なら調整可能）
-  const threshold = 10;
-
-  for (let i = 0; i < data.length; i += 4) {
-    const r = data[i];
-    const g = data[i + 1];
-    const b = data[i + 2];
-
-    if (Math.abs(r - pickedColor.r) < threshold &&
-        Math.abs(g - pickedColor.g) < threshold &&
-        Math.abs(b - pickedColor.b) < threshold) {
-      data[i + 3] = 0; // 透明
-    }
-  }
-
-  tctx.putImageData(imgData, 0, 0);
-
-  // 透明化後の画像で置き換え
-  const newImg = new Image();
-  newImg.onload = () => {
-    sliceSourceImage = newImg;
-    drawSlicePreview();
-    updatePartialPreview();
-  };
-  newImg.src = tmp.toDataURL();
-
-
-});
-
 /* --------------------
    プレビュー描画（ズーム + 暗幕 + ガイド線）
 -------------------- */
 function drawSlicePreview() {
-  console.log("[DRAW] sliceSourceImage =", sliceSourceImage);
-console.log("[DRAW] canvas =", slicePrevCanvas.width, slicePrevCanvas.height);
-
   if (!sliceSourceImage) return;
 
   const cw = slicePrevCanvas.width;
@@ -727,10 +1132,6 @@ console.log("[DRAW] canvas =", slicePrevCanvas.width, slicePrevCanvas.height);
       );
     }
   }
-
-
-
-
 
 
 
@@ -797,6 +1198,81 @@ if (sliceLineMode) {
 
 }
 
+/* =========================
+   透明色ピック＆適用（イベントは一度だけ登録）
+========================= */
+(function setupTransparentColorPickerOnce() {
+  const pickBtn = document.getElementById("pick-transparent-color");
+  const applyBtn = document.getElementById("apply-transparent-color");
+  const msg = document.getElementById("transparent-msg");
+  const preview = document.getElementById("picked-color-preview");
+
+  if (!pickBtn || !applyBtn || !slicePrevCanvas) return;
+
+  pickBtn.addEventListener("click", () => {
+    transparentPickMode = true;
+    if (msg) msg.textContent = "スライスプレビューをクリックして色を選択してください。";
+  });
+
+  slicePrevCanvas.addEventListener("click", (e) => {
+    if (!transparentPickMode) return;
+
+    const rect = slicePrevCanvas.getBoundingClientRect();
+    const x = Math.floor(e.clientX - rect.left);
+    const y = Math.floor(e.clientY - rect.top);
+
+    const pixel = slicePrevCtx.getImageData(x, y, 1, 1).data;
+    pickedColor = { r: pixel[0], g: pixel[1], b: pixel[2] };
+
+    if (preview) {
+      preview.style.background = `rgb(${pickedColor.r},${pickedColor.g},${pickedColor.b})`;
+    }
+    if (msg) msg.textContent = "色を選択しました。";
+
+    transparentPickMode = false;
+  });
+
+  applyBtn.addEventListener("click", () => {
+    if (!pickedColor || !sliceSourceImage) {
+      alert("透明化したい色を選んでください。");
+      return;
+    }
+
+    const tmp = document.createElement("canvas");
+    tmp.width = sliceSourceImage.width;
+    tmp.height = sliceSourceImage.height;
+
+    const tctx = tmp.getContext("2d");
+    tctx.drawImage(sliceSourceImage, 0, 0);
+
+    const imgData = tctx.getImageData(0, 0, tmp.width, tmp.height);
+    const data = imgData.data;
+
+    const threshold = 10; // 必要なら調整
+
+    for (let i = 0; i < data.length; i += 4) {
+      const r = data[i];
+      const g = data[i + 1];
+      const b = data[i + 2];
+
+      if (Math.abs(r - pickedColor.r) < threshold &&
+          Math.abs(g - pickedColor.g) < threshold &&
+          Math.abs(b - pickedColor.b) < threshold) {
+        data[i + 3] = 0;
+      }
+    }
+
+    tctx.putImageData(imgData, 0, 0);
+
+    const newImg = new Image();
+    newImg.onload = () => {
+      sliceSourceImage = newImg;
+      drawSlicePreview();
+      updatePartialPreview();
+    };
+    newImg.src = tmp.toDataURL();
+  });
+})();
 
 
 const slicePartialCanvas = document.getElementById("slice-partial-canvas");
@@ -1450,4 +1926,5 @@ loadSliceSettings();
 resetGrid();
 resizeCanvas();
 drawGrid();
+loadToolSettings();
 drawSlicePreview();
