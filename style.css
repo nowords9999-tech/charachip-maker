@@ -114,3 +114,53 @@ body {
 #slice-partial-container {
   background: transparent !important;
 }
+/* =========================
+   グリッドパネル：巨大サイズでも崩れない土台
+========================= */
+#grid-panel {
+  display: flex;
+  flex-direction: column;
+  min-width: 0; /* flex内のはみ出し防止 */
+  gap: 8px;
+}
+
+/* 入力行が横に伸びて崩れるのを防ぐ */
+#grid-settings,
+.grid-save-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+  min-width: 0;
+}
+
+#grid-settings label {
+  display: inline-flex;
+  gap: 6px;
+  align-items: center;
+  white-space: nowrap;
+}
+
+#grid-settings input {
+  width: 90px;      /* ここは好みで */
+  max-width: 140px; /* 暴走防止 */
+}
+
+/* グリッド表示枠：高さを確保し、はみ出しは中で吸収 */
+#grid-container {
+  position: relative;
+  flex: 1 1 auto;
+  min-height: 320px;         /* “最低これだけは表示する” */
+  max-height: 70vh;          /* 画面が小さくても破綻しにくい */
+  width: 100%;
+  overflow: auto;            /* どうしても足りない時はスクロール */
+  border: 1px solid rgba(255,255,255,0.12);
+  border-radius: 8px;
+}
+
+/* canvas 自体は container に追随（実描画はJSでfit済み） */
+#grid-canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+}

@@ -22,6 +22,8 @@ function onId(id, ev, fn, options) {
   return el;
 }
 
+
+
 /* =========================
    グリッド基本設定
 ========================= */
@@ -315,6 +317,9 @@ function drawGrid() {
   const cw = container.clientWidth;
   const ch = container.clientHeight;
 
+    // ★保険：極端に小さい時は描画しない（レイアウト確定後にResizeObserverで描かれる）
+  if (cw < 10 || ch < 10) return;
+
   const scale = Math.min(cw / realW, ch / realH);
 
   gridCanvas.width = cw;
@@ -419,6 +424,21 @@ if (selectedCells && selectedCells.size > 0) {
 
   ctx.restore();
 }
+
+/* =========================
+   グリッド表示領域のサイズ変化に追従
+========================= */
+(function watchGridContainerResize() {
+  const container = document.getElementById("grid-container");
+  if (!container || typeof ResizeObserver === "undefined") return;
+
+  const ro = new ResizeObserver(() => {
+    // 選択や内容は維持したままフィット描画し直す
+    drawGrid();
+  });
+
+  ro.observe(container);
+})();
 
 //左右反転
 document.getElementById("flip-horizontal").addEventListener("click", () => {
