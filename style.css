@@ -164,3 +164,13 @@ body {
   width: 100%;
   height: 100%;
 }
+
+/* =========================
+   キャンバスのカーソルを全部矢印に統一
+========================= */
+#slice-preview-canvas,
+#slice-partial-canvas,
+#slice-list canvas,
+#grid-canvas {
+  cursor: default !important;
+}

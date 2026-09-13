@@ -15,12 +15,66 @@
   <div id="slice-panel">
     <h2>スライス設定</h2>
 
-    <input type="file" id="slice-file"><h3>透明化</h3>
-<button id="pick-transparent-color">透明化する色を選ぶ</button>
-<button id="apply-transparent-color">選択色を透明化</button><div id="transparent-msg" style="margin-top:5px; color:#8f8;"></div>
+<input type="file" id="slice-file">
 
-<div id="picked-color-preview" style="width:40px; height:20px; border:1px solid #fff; margin-top:5px;"></div>
+<h3>透明化</h3>
 
+<button id="pick-transparent-color">
+  透明化する色を選ぶ
+</button>
+
+<button id="apply-transparent-color">
+  選択色を透明化
+</button>
+
+<button
+  id="undo-transparent-color"
+  type="button"
+  disabled
+>
+  元に戻す
+</button>
+
+<div id="transparent-msg"
+     style="margin-top:5px; color:#8f8;">
+</div>
+
+<div id="picked-color-preview"
+     style="
+       width:40px;
+       height:20px;
+       border:1px solid #fff;
+       margin-top:5px;
+     ">
+</div>
+
+<div style="margin-top:10px;">
+  <label>
+    透明化する色の範囲：
+    <input
+      id="transparent-threshold"
+      type="range"
+      min="0"
+      max="100"
+      value="10"
+      step="1"
+      disabled
+      style="
+        width:240px;
+        vertical-align:middle;
+      "
+    >
+    <span id="transparent-threshold-value">10</span>
+  </label>
+
+  <div style="
+    margin-top:4px;
+    font-size:12px;
+    color:#bbb;
+  ">
+    0＝選択色と完全一致 ／ 数値が大きいほど近い色も透明化
+  </div>
+</div>
 
     <div class="slice-setting">
       <label>コマ幅: <input id="slice-w" type="number" value="64"></label>

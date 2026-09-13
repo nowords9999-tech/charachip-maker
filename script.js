@@ -336,7 +336,7 @@ function drawGrid() {
 
   for (let r = 0; r < gridRows; r++) {
     for (let c = 0; c < gridCols; c++) {
-      const cell = grid[r][c];
+      const cell = grid[r]?.[c] ?? null;
 if (cell && cell.img) {
   const origW = cell.img.width;
   const origH = cell.img.height;
@@ -1031,6 +1031,22 @@ document.getElementById("save-png").addEventListener("click", () => {
 
 let sliceSourceImage = null;
 
+/* =========================
+   透明化の「元に戻す」履歴
+========================= */
+const transparentUndoStack = [];
+const TRANSPARENT_UNDO_LIMIT = 20;
+
+function updateTransparentUndoButton() {
+  const button =
+    document.getElementById("undo-transparent-color");
+
+  if (!button) return;
+
+  button.disabled =
+    transparentUndoStack.length === 0;
+}
+
 const slicePrevCanvas = document.getElementById("slice-preview-canvas");
 const slicePrevCtx = slicePrevCanvas.getContext("2d");
 
@@ -1058,6 +1074,19 @@ let partialLineIndex = 0;    // ★ 追加：何コマ目から残りを表示�
 document.getElementById("slice-file").addEventListener("change", (e) => {
   const file = e.target.files[0];
   if (!file) return;
+
+  // 新しい画像を読み込んだら透明化履歴をリセット
+  transparentUndoStack.length = 0;
+  updateTransparentUndoButton();
+
+  pickedColor = null;
+
+  const colorPreview =
+    document.getElementById("picked-color-preview");
+
+  if (colorPreview) {
+    colorPreview.style.background = "transparent";
+  }
 
 const reader = new FileReader();
 reader.onload = function (ev) {
@@ -1219,80 +1248,252 @@ if (sliceLineMode) {
 }
 
 /* =========================
-   透明色ピック＆適用（イベントは一度だけ登録）
+   透明色ピック＆適用
+   - 色選択後に許容範囲スライダーを有効化
+   - スライダー値に近い色も透明化
 ========================= */
 (function setupTransparentColorPickerOnce() {
-  const pickBtn = document.getElementById("pick-transparent-color");
-  const applyBtn = document.getElementById("apply-transparent-color");
-  const msg = document.getElementById("transparent-msg");
-  const preview = document.getElementById("picked-color-preview");
+  const pickBtn =
+    document.getElementById("pick-transparent-color");
 
-  if (!pickBtn || !applyBtn || !slicePrevCanvas) return;
+  const applyBtn =
+    document.getElementById("apply-transparent-color");
 
+  const msg =
+    document.getElementById("transparent-msg");
+
+  const preview =
+    document.getElementById("picked-color-preview");
+
+  const thresholdSlider =
+    document.getElementById("transparent-threshold");
+
+const thresholdValue =
+  document.getElementById("transparent-threshold-value");
+
+const undoBtn =
+  document.getElementById("undo-transparent-color");
+
+  if (!pickBtn || !applyBtn || !slicePrevCanvas) {
+    return;
+  }
+/* -------------------------
+   透明化を元に戻す
+------------------------- */
+if (undoBtn) {
+  undoBtn.addEventListener("click", () => {
+    const previousSrc =
+      transparentUndoStack.pop();
+
+    updateTransparentUndoButton();
+
+    if (!previousSrc) return;
+
+    const restoredImage = new Image();
+
+    restoredImage.onload = () => {
+      sliceSourceImage = restoredImage;
+
+      drawSlicePreview();
+
+      if (
+        typeof updatePartialPreview === "function"
+      ) {
+        updatePartialPreview();
+      }
+
+      if (msg) {
+        msg.textContent =
+          `元に戻しました。残り履歴：${transparentUndoStack.length}`;
+      }
+    };
+
+    restoredImage.src = previousSrc;
+  });
+}
+  // スライダーの数値表示
+  if (thresholdSlider && thresholdValue) {
+    thresholdValue.textContent =
+      thresholdSlider.value;
+
+    thresholdSlider.addEventListener("input", () => {
+      thresholdValue.textContent =
+        thresholdSlider.value;
+    });
+  }
+
+  /* -------------------------
+     透明化する色の選択開始
+  ------------------------- */
   pickBtn.addEventListener("click", () => {
     transparentPickMode = true;
-    if (msg) msg.textContent = "スライスプレビューをクリックして色を選択してください。";
+
+    if (msg) {
+      msg.textContent =
+        "スライスプレビューをクリックして色を選択してください。";
+    }
   });
 
+  /* -------------------------
+     プレビューから色を取得
+  ------------------------- */
   slicePrevCanvas.addEventListener("click", (e) => {
     if (!transparentPickMode) return;
 
-    const rect = slicePrevCanvas.getBoundingClientRect();
-    const x = Math.floor(e.clientX - rect.left);
-    const y = Math.floor(e.clientY - rect.top);
+    const rect =
+      slicePrevCanvas.getBoundingClientRect();
 
-    const pixel = slicePrevCtx.getImageData(x, y, 1, 1).data;
-    pickedColor = { r: pixel[0], g: pixel[1], b: pixel[2] };
+    const x =
+      Math.floor(e.clientX - rect.left);
+
+    const y =
+      Math.floor(e.clientY - rect.top);
+
+    const pixel =
+      slicePrevCtx.getImageData(x, y, 1, 1).data;
+
+    pickedColor = {
+      r: pixel[0],
+      g: pixel[1],
+      b: pixel[2]
+    };
 
     if (preview) {
-      preview.style.background = `rgb(${pickedColor.r},${pickedColor.g},${pickedColor.b})`;
+      preview.style.background =
+        `rgb(${pickedColor.r},${pickedColor.g},${pickedColor.b})`;
     }
-    if (msg) msg.textContent = "色を選択しました。";
+
+    // 色を選んだらスライダーを操作可能にする
+    if (thresholdSlider) {
+      thresholdSlider.disabled = false;
+    }
+
+    if (msg) {
+      msg.textContent =
+        "色を選択しました。範囲を調整して透明化してください。";
+    }
 
     transparentPickMode = false;
   });
 
+  /* -------------------------
+     選択色と近い色を透明化
+  ------------------------- */
   applyBtn.addEventListener("click", () => {
     if (!pickedColor || !sliceSourceImage) {
       alert("透明化したい色を選んでください。");
       return;
     }
 
-    const tmp = document.createElement("canvas");
-    tmp.width = sliceSourceImage.width;
-    tmp.height = sliceSourceImage.height;
+    const tmp =
+      document.createElement("canvas");
 
-    const tctx = tmp.getContext("2d");
-    tctx.drawImage(sliceSourceImage, 0, 0);
+    tmp.width =
+      sliceSourceImage.width;
 
-    const imgData = tctx.getImageData(0, 0, tmp.width, tmp.height);
-    const data = imgData.data;
+    tmp.height =
+      sliceSourceImage.height;
 
-    const threshold = 10; // 必要なら調整
+    const tctx =
+      tmp.getContext("2d");
+
+    tctx.drawImage(
+      sliceSourceImage,
+      0,
+      0
+    );
+
+    const imgData =
+      tctx.getImageData(
+        0,
+        0,
+        tmp.width,
+        tmp.height
+      );
+
+    const data =
+      imgData.data;
+
+    // スライダー値を透明化範囲として使用
+    const threshold = Math.max(
+      0,
+      Number(thresholdSlider?.value ?? 10)
+    );
 
     for (let i = 0; i < data.length; i += 4) {
       const r = data[i];
       const g = data[i + 1];
       const b = data[i + 2];
 
-      if (Math.abs(r - pickedColor.r) < threshold &&
-          Math.abs(g - pickedColor.g) < threshold &&
-          Math.abs(b - pickedColor.b) < threshold) {
+      const diffR =
+        Math.abs(r - pickedColor.r);
+
+      const diffG =
+        Math.abs(g - pickedColor.g);
+
+      const diffB =
+        Math.abs(b - pickedColor.b);
+
+      if (
+        diffR <= threshold &&
+        diffG <= threshold &&
+        diffB <= threshold
+      ) {
         data[i + 3] = 0;
       }
     }
 
-    tctx.putImageData(imgData, 0, 0);
+    tctx.putImageData(
+      imgData,
+      0,
+      0
+    );
 
-    const newImg = new Image();
-    newImg.onload = () => {
-      sliceSourceImage = newImg;
-      drawSlicePreview();
-      updatePartialPreview();
-    };
-    newImg.src = tmp.toDataURL();
+const previousSrc =
+  sliceSourceImage.src;
+
+const transparentImageSrc =
+  tmp.toDataURL("image/png");
+
+const newImg =
+  new Image();
+
+newImg.onload = () => {
+  // 透明化前の画像を履歴に保存
+  if (previousSrc) {
+    transparentUndoStack.push(previousSrc);
+
+    // 履歴が増えすぎないよう最大20件
+    if (
+      transparentUndoStack.length >
+      TRANSPARENT_UNDO_LIMIT
+    ) {
+      transparentUndoStack.shift();
+    }
+  }
+
+  sliceSourceImage = newImg;
+
+  updateTransparentUndoButton();
+  drawSlicePreview();
+
+  if (
+    typeof updatePartialPreview === "function"
+  ) {
+    updatePartialPreview();
+  }
+
+  if (msg) {
+    msg.textContent =
+      `透明化しました。範囲：${threshold}`;
+  }
+};
+
+newImg.src =
+  transparentImageSrc;
   });
 })();
+
 
 
 const slicePartialCanvas = document.getElementById("slice-partial-canvas");
@@ -1914,26 +2115,42 @@ function loadSliceSettings() {
   } catch (e) {}
 }
 
-document.getElementById("banner-upload").addEventListener("change", (e) => {
+/* ============================================================
+   バナー画像アップロード
+   - HTMLに該当要素がない場合は何もしない
+============================================================ */
+onId("banner-upload", "change", (e) => {
   const file = e.target.files[0];
   if (!file) return;
 
   const reader = new FileReader();
+
   reader.onload = function(ev) {
     const img = new Image();
+
     img.onload = () => {
       const box = document.getElementById("banner-box");
-      box.innerHTML = ""; // テキスト削除
 
-      // 画像要素を枠にピッタリ収める
+      // banner-boxがHTMLにない場合も安全に終了
+      if (!box) {
+        console.warn(
+          "[CharaTool] Missing element: #banner-box"
+        );
+        return;
+      }
+
+      box.innerHTML = "";
+
       img.style.maxWidth = "100%";
       img.style.maxHeight = "100%";
       img.style.objectFit = "contain";
 
       box.appendChild(img);
     };
+
     img.src = ev.target.result;
   };
+
   reader.readAsDataURL(file);
 });
 
