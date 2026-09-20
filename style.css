@@ -6,9 +6,36 @@ body {
   font-family: sans-serif;
 }
 
+#tool-header {
+  height: 48px;
+  padding: 0 14px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  box-sizing: border-box;
+  border-bottom: 1px solid #555;
+  background: #181818;
+}
+
+.home-link {
+  padding: 7px 11px;
+  border: 1px solid #888;
+  border-radius: 6px;
+  color: #fff;
+  background: #444;
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.home-link:hover {
+  border-color: #ffb45a;
+  background: #555;
+}
+
 #app {
   display: flex;
-  height: 100vh;
+  height: calc(100vh - 48px);
   overflow: hidden;
 }
 
@@ -109,6 +136,60 @@ body {
   color: #eee;
   padding: 4px 8px;
   cursor: pointer;
+}
+
+.game-banners {
+  display: grid;
+  gap: 8px;
+}
+
+.game-banner {
+  position: relative;
+  display: block;
+  width: 100%;
+  overflow: hidden;
+  border: 1px solid #666;
+  border-radius: 4px;
+  background: #111;
+  box-sizing: border-box;
+}
+
+.game-banner img {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+
+.game-banner:hover {
+  border-color: #ffb45a;
+}
+
+.chrono-banner {
+  height: 150px;
+}
+
+.chrono-banner img {
+  height: 100%;
+  object-fit: cover;
+  object-position: center 72%;
+}
+
+.chrono-banner span {
+  position: absolute;
+  right: 8px;
+  bottom: 8px;
+  padding: 5px 8px;
+  color: #fff;
+  background: rgba(0, 0, 0, .78);
+  border: 1px solid rgba(255, 255, 255, .35);
+  font-weight: 700;
+  line-height: 1.2;
+  text-align: right;
+}
+
+.chrono-banner small {
+  font-size: 11px;
+  font-weight: 400;
 }
 
 #slice-partial-container {
